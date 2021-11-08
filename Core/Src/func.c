@@ -467,16 +467,19 @@ int8_t id = -1, ret = -1;
 			case _CCLK://+CCLK: "21/11/01,12:49:31+02"
 				if (strlen(uks) > 12) {
 					gf->okDT = 0;
+					gf->reqDT = 1;
 					uks++;
 					char *uki = strchr(uks, '"');
 					if (uki) *uki = '\0';
 					strncpy(sntpDT, uks, sizeof(sntpDT) - 1);
+					/**/
 					if (gf->tReady) {
 						if (checkDT(sntpDT)) {
 							gf->reqDT = 1;
 							if (set_DT()) gf->okDT = 1;
 						}
 					}
+					/**/
 				}
 			break;
 			case _CBC://+CBC: 0,65,3928

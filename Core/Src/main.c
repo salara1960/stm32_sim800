@@ -74,7 +74,7 @@ osThreadId_t gpsTaskHandle;
 const osThreadAttr_t gpsTask_attributes = {
   .name = "gpsTask",
   .priority = (osPriority_t) osPriorityNormal1,
-  .stack_size = 512 * 4
+  .stack_size = 384 * 4
 };
 /* USER CODE BEGIN PV */
 //osSemaphoreId_t mainBinSemHandle;
@@ -96,10 +96,11 @@ const osThreadAttr_t gpsTask_attributes = {
 //const char *version = "1.0 (04.11.2021)";// add cusd support and repeat command when error recv from GSM module
 //const char *version = "1.1 (05.11.2021)";// add gps module (on uart6 + pps_pin with interrupt by rising/falling edge)
 //const char *version = "1.2 (06.11.2021)";// add get date/time from SNTP server
-const char *version = "1.3 (07.11.2021)";// add get date/time from SNTP server
+//const char *version = "1.3 (07.11.2021)";// add get date/time from SNTP server
+const char *version = "1.3 (07.11.2021)";// set to RTC date/time received from SNTP server
 
 
-volatile time_t epoch = 1636288627;
+volatile time_t epoch = 1636366999;//1636288627;
 						//1636208753;//1636148268;//1636114042;//1636106564;//1636045527;//1636022804;//1635975820;//1635956750;
 						//1635854199;//1635762840;//1635701599;//1635681180;//1635627245;//1635505880;//1635001599;//1634820289;
 uint32_t last_sec;
@@ -1199,7 +1200,14 @@ void StartDefaultTask(void *argument)
 				//
 				if ((uks = strstr(buf2, "\r\n")) != NULL) *uks = '\0';
 				result = parseEvent(buf2, (void *)&gsmFlags);
-				//
+				/*
+				if (gsmFlags.reqDT && gsmFlags.tReady) {
+					if (checkDT(sntpDT)) {
+						gsmFlags.reqDT = 0;
+						if (set_DT()) gsmFlags.okDT = 1;
+					}
+				}
+				*/
 				if (at_auto) {
 					if (uk_ack) {
 						if (strstr(buf2, uk_ack)) {
