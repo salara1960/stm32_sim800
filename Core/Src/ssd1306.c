@@ -13,6 +13,10 @@ uint8_t invert = OLED_CMD_DISPLAY_NORMAL;
 uint8_t oled_withDMA = 0;
 extern uint8_t i2cRdy;
 
+#ifdef USED_FREERTOS
+	extern osSemaphoreId_t semHandle;
+	uint32_t waitSem = 200;//ms
+#endif
 //******************************************************************************************
 
 //-----------------------------------------------------------------------------------------
@@ -35,13 +39,19 @@ HAL_StatusTypeDef rt = HAL_OK;
     if (flag) dat[1] = OLED_CMD_DISPLAY_ON;
     	 else dat[1] = OLED_CMD_DISPLAY_OFF;
 
-    if (oled_withDMA) {
-    	rt = HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat));
-    	while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
-    } else {
-    	rt = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat), min_wait_ms);
-    }
-
+//#ifdef USED_FREERTOS
+//	if (osSemaphoreAcquire(semHandle, waitSem) == osOK) {
+//#endif
+		if (oled_withDMA) {
+			rt = HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat));
+			while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
+		} else {
+			rt = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat), min_wait_ms);
+		}
+//#ifdef USED_FREERTOS
+//		osSemaphoreRelease(semHandle);
+//	}
+//#endif
     i2cRdy = 1;
 
     if (rt != HAL_OK) devError |= devI2C;
@@ -67,14 +77,19 @@ uint8_t dat[] = {
 HAL_StatusTypeDef rt = HAL_OK;
 
 	i2cRdy = 0;
-
-	if (oled_withDMA) {
-		rt = HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat));
-		while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
-	} else {
-		rt = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat), min_wait_ms);
-	}
-
+//#ifdef USED_FREERTOS
+//	if (osSemaphoreAcquire(semHandle, waitSem) == osOK) {
+//#endif
+		if (oled_withDMA) {
+			rt = HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat));
+			while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
+		} else {
+			rt = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat), min_wait_ms);
+		}
+//#ifdef USED_FREERTOS
+//		osSemaphoreRelease(semHandle);
+//	}
+//#endif
 	i2cRdy = 1;
 
 	if (rt != HAL_OK) devError |= devI2C;
@@ -91,14 +106,19 @@ HAL_StatusTypeDef rt = HAL_OK;
     if (invert == OLED_CMD_DISPLAY_INVERTED) invert = OLED_CMD_DISPLAY_NORMAL;
 										else invert = OLED_CMD_DISPLAY_INVERTED;
     dat[1] = invert;
-
-    if (oled_withDMA) {
-    	rt = HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat));
-    	while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {/*HAL_Delay(1);*/}
-    } else {
-    	rt = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat), min_wait_ms);
-    }
-
+//#ifdef USED_FREERTOS
+//	if (osSemaphoreAcquire(semHandle, waitSem) == osOK) {
+//#endif
+		if (oled_withDMA) {
+			rt = HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat));
+			while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {/*HAL_Delay(1);*/}
+		} else {
+			rt = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat), min_wait_ms);
+		}
+//#ifdef USED_FREERTOS
+//		osSemaphoreRelease(semHandle);
+//	}
+//#endif
     i2cRdy = 1;
 
     if (rt != HAL_OK) devError |= devI2C;
@@ -115,18 +135,24 @@ uint8_t dma = oled_withDMA;
 	i2cRdy = 0;
 
 	zero[0] = OLED_CONTROL_BYTE_DATA_STREAM;
-	for (i = 0; i < 8; i++) {
-		dat[1] = 0xB0 | i;
-		if (dma) {
-			rt  = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat,    2, min_wait_ms);
-			rt |= HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, zero, 129);
-			while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
-		} else {
-			rt  = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat,    2, min_wait_ms);
-			rt |= HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, zero, 129, max_wait_ms);
+//#ifdef USED_FREERTOS
+//	if (osSemaphoreAcquire(semHandle, waitSem) == osOK) {
+//#endif
+		for (i = 0; i < 8; i++) {
+			dat[1] = 0xB0 | i;
+			if (dma) {
+				rt  = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat,    2, min_wait_ms);
+				rt |= HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, zero, 129);
+				while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
+			} else {
+				rt  = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat,    2, min_wait_ms);
+				rt |= HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, zero, 129, max_wait_ms);
+			}
 		}
-	}
-
+//#ifdef USED_FREERTOS
+//		osSemaphoreRelease(semHandle);
+//	}
+//#endif
 	i2cRdy = 1;
 
 	if (rt != HAL_OK) devError |= devI2C;
@@ -153,19 +179,25 @@ uint8_t next[] = {
 	uint8_t dma = oled_withDMA;
 
 	i2cRdy = 0;
-
-	if (HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, first, sizeof(first), max_wait_ms) == HAL_OK) {
-		if (HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, next, sizeof(next), min_wait_ms) == HAL_OK) {
-			for (uint8_t i = 0; i < 16; i++) {
-				if (dma) {
-					rt |= HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, cif_zero, sizeof(cif_zero));
-					while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
-				} else {
-					rt |= HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, cif_zero, sizeof(cif_zero), max_wait_ms);
+#ifdef USED_FREERTOS
+	if (osSemaphoreAcquire(semHandle, waitSem) == osOK) {
+#endif
+		if (HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, first, sizeof(first), max_wait_ms) == HAL_OK) {
+			if (HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, next, sizeof(next), min_wait_ms) == HAL_OK) {
+				for (uint8_t i = 0; i < 16; i++) {
+					if (dma) {
+						rt |= HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, cif_zero, sizeof(cif_zero));
+						while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
+					} else {
+						rt |= HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, cif_zero, sizeof(cif_zero), max_wait_ms);
+					}
 				}
 			}
 		}
+#ifdef USED_FREERTOS
+		osSemaphoreRelease(semHandle);
 	}
+#endif
 
 	i2cRdy = 1;
 
@@ -182,18 +214,24 @@ uint8_t dma = oled_withDMA;
 	i2cRdy = 0;
 
 	zero[0] = OLED_CONTROL_BYTE_DATA_STREAM;
-	for (i = sline - 1; i < eline; i++) {
-		dat[1] = 0xB0 | i;
-		if (dma) {
-			rt  = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat,    2, min_wait_ms);
-			rt |= HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, zero, 129);
-			while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
-		} else {
-			rt  = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat,    2, min_wait_ms);
-			rt |= HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, zero, 129, max_wait_ms);
+#ifdef USED_FREERTOS
+	if (osSemaphoreAcquire(semHandle, waitSem) == osOK) {
+#endif
+		for (i = sline - 1; i < eline; i++) {
+			dat[1] = 0xB0 | i;
+			if (dma) {
+				rt  = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat,    2, min_wait_ms);
+				rt |= HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, zero, 129);
+				while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
+			} else {
+				rt  = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat,    2, min_wait_ms);
+				rt |= HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, zero, 129, max_wait_ms);
+			}
 		}
+#ifdef USED_FREERTOS
+		osSemaphoreRelease(semHandle);
 	}
-
+#endif
 	i2cRdy = 1;
 
 	if (rt != HAL_OK) devError |= devI2C;
@@ -226,18 +264,24 @@ uint8_t dma = oled_withDMA;
 
 	buf[0] = OLED_CONTROL_BYTE_DATA_STREAM;
 	for (i = 1; i < 129; i++) buf[i] = 0xFF >> (i % 8);
-	for (i = 0; i < 8; i++) {
-		dat[1] = 0xB0 | i;
-		if (dma) {
-			rt |= HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat,   2, min_wait_ms);
-			rt |= HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, buf, 129);
-			while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
-		} else {
-			rt |= HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat,   2, min_wait_ms);
-			rt |= HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, buf, 129, max_wait_ms);
+#ifdef USED_FREERTOS
+	if (osSemaphoreAcquire(semHandle, waitSem) == osOK) {
+#endif
+		for (i = 0; i < 8; i++) {
+			dat[1] = 0xB0 | i;
+			if (dma) {
+				rt |= HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat,   2, min_wait_ms);
+				rt |= HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, buf, 129);
+				while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
+			} else {
+				rt |= HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat,   2, min_wait_ms);
+				rt |= HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, buf, 129, max_wait_ms);
+			}
 		}
+#ifdef USED_FREERTOS
+		osSemaphoreRelease(semHandle);
 	}
-
+#endif
 	i2cRdy = 1;
 
 	if (rt != HAL_OK) devError |= devI2C;
@@ -249,16 +293,21 @@ uint8_t dat[] = {OLED_CONTROL_BYTE_CMD_STREAM, OLED_CMD_SET_CONTRAST, value};
 HAL_StatusTypeDef rt = HAL_OK;
 
 	i2cRdy = 0;
-
-	if (oled_withDMA) {
-		rt = HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat));
-		//while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
-		while (!i2cRdy) {}
-	} else {
-		rt = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat), min_wait_ms);
-		i2cRdy = 1;
+#ifdef USED_FREERTOS
+	if (osSemaphoreAcquire(semHandle, waitSem) == osOK) {
+#endif
+		if (oled_withDMA) {
+			rt = HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat));
+			//while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
+			while (!i2cRdy) {}
+		} else {
+			rt = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat), min_wait_ms);
+			i2cRdy = 1;
+		}
+#ifdef USED_FREERTOS
+		osSemaphoreRelease(semHandle);
 	}
-
+#endif
 	if (rt != HAL_OK) devError |= devI2C;
 }
 //-----------------------------------------------------------------------------------------
@@ -281,30 +330,36 @@ uint8_t first[] = {
 	uint8_t dma = 0;//oled_withDMA;
 
 	i2cRdy = 0;
-
-	rt = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, first, sizeof(first), min_wait_ms);
-	if (rt == HAL_OK) {
-		for (i = 0; i < len; i++) {
-			if (stroka[i] == '\n') {
-				dat[3] = 0xB0 | ++lin;
-				if (dma) {
-					rt = HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat));
-					while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
+#ifdef USED_FREERTOS
+	if (osSemaphoreAcquire(semHandle, waitSem) == osOK) {
+#endif
+		rt = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, first, sizeof(first), min_wait_ms);
+		if (rt == HAL_OK) {
+			for (i = 0; i < len; i++) {
+				if (stroka[i] == '\n') {
+					dat[3] = 0xB0 | ++lin;
+					if (dma) {
+						rt = HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat));
+						while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
+					} else {
+						rt = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat), min_wait_ms);
+					}
 				} else {
-					rt = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat), min_wait_ms);
-				}
-			} else {
-				memcpy(&cif[1], &font8x8[(uint8_t)stroka[i]][0], 8);
-				if (inv) for (uint8_t j = 1; j < sizeof(cif); j++) cif[j] = ~cif[j];
-				if (dma) {
-					rt = HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, cif, sizeof(cif));
-					while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
-				} else {
-					rt = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, cif, sizeof(cif), max_wait_ms);
+					memcpy(&cif[1], &font8x8[(uint8_t)stroka[i]][0], 8);
+					if (inv) for (uint8_t j = 1; j < sizeof(cif); j++) cif[j] = ~cif[j];
+					if (dma) {
+						rt = HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, cif, sizeof(cif));
+						while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
+					} else {
+						rt = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, cif, sizeof(cif), max_wait_ms);
+					}
 				}
 			}
 		}
+#ifdef USED_FREERTOS
+		osSemaphoreRelease(semHandle);
 	}
+#endif
 
 	i2cRdy = 1;
 
@@ -342,16 +397,22 @@ bool ret = true;
 
 	i2cRdy = 0;
 
-	//spi_ssd1306_WriteCmds(dat, len);
-	if (oled_withDMA) {
-	    if (HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, dat, len) != HAL_OK) devError |= devI2C;
-	    //while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
-	    while (!i2cRdy) {}
-	} else {
-		if (HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat, len, min_wait_ms) != HAL_OK) devError |= devI2C;
-		i2cRdy = 1;
+#ifdef USED_FREERTOS
+	if (osSemaphoreAcquire(semHandle, waitSem) == osOK) {
+#endif
+		//spi_ssd1306_WriteCmds(dat, len);
+		if (oled_withDMA) {
+			if (HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, dat, len) != HAL_OK) devError |= devI2C;
+			//while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
+			while (!i2cRdy) {}
+		} else {
+			if (HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat, len, min_wait_ms) != HAL_OK) devError |= devI2C;
+			i2cRdy = 1;
+		}
+#ifdef USED_FREERTOS
+		osSemaphoreRelease(semHandle);
 	}
-
+#endif
 
 	return ret;
 }
@@ -363,16 +424,21 @@ bool ret = true;
 	uint8_t dat[] = {OLED_CONTROL_BYTE_CMD_STREAM, OLED_CMD_SHIFT_STOP, OLED_SET_VERTICAL_SCROLL_AREA, start, stop};
 
 	i2cRdy = 0;
-
-	if (oled_withDMA) {
-		if (HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat)) != HAL_OK) devError |= devI2C;
-		//while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
-		while (!i2cRdy) {}
-	} else {
-		if (HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat), min_wait_ms) != HAL_OK) devError |= devI2C;
-		i2cRdy = 1;
+#ifdef USED_FREERTOS
+	if (osSemaphoreAcquire(semHandle, waitSem) == osOK) {
+#endif
+		if (oled_withDMA) {
+			if (HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat)) != HAL_OK) devError |= devI2C;
+			//while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
+			while (!i2cRdy) {}
+		} else {
+			if (HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat), min_wait_ms) != HAL_OK) devError |= devI2C;
+			i2cRdy = 1;
+		}
+#ifdef USED_FREERTOS
+		osSemaphoreRelease(semHandle);
 	}
-
+#endif
 
 	return ret;
 }
@@ -401,18 +467,22 @@ bool ret = true;
 	}
 
 	i2cRdy = 0;
-
-
-	//spi_ssd1306_WriteCmds(dat, len);
-	if (oled_withDMA) {
+#ifdef USED_FREERTOS
+	if (osSemaphoreAcquire(semHandle, waitSem) == osOK) {
+#endif
+		//spi_ssd1306_WriteCmds(dat, len);
+		if (oled_withDMA) {
 	    	if (HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, dat, len) != HAL_OK) devError |= devI2C;
 	    	//while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
 	    	while (!i2cRdy) {}
-	} else {
+		} else {
 	    	if (HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat, len, min_wait_ms) != HAL_OK) devError |= devI2C;
 	    	i2cRdy = 1;
+		}
+#ifdef USED_FREERTOS
+		osSemaphoreRelease(semHandle);
 	}
-
+#endif
 	//i2cRdy = 1;
 
 	return ret;

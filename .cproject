@@ -243,7 +243,7 @@
 	<storageModule moduleId="org.eclipse.cdt.core.LanguageSettingsProviders"/>
 	<storageModule moduleId="refreshScope" versionNumber="2">
 		<configuration configurationName="Debug">
-			<resource resourceType="PROJECT" workspacePath="stm32_bridge"/>
+			<resource resourceType="PROJECT" workspacePath="/stm32_bridge"/>
 		</configuration>
 		<configuration configurationName="Release"/>
 	</storageModule>

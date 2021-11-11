@@ -13,6 +13,7 @@
 * ATGM332D - gps/glonass module (interface uart)
 * SSD1306 - OLED display 0.96 "128x64 (interfaces I2C)
 * W25Q64 - flash memory chip with a capacity of 8MB (interfaces spi)
+* DS18B20 - temperature sensor (interfaces 1-ware)
 ```
 
 
@@ -38,25 +39,26 @@
   - StartDefaultTask - task that support AT-commands nodule SIM800l.
   - StartGps - task that works with GPS data (NMEA) of the ATGM332D module.
 * The device initializes some microcontroller interfaces:
-  - GPIO : three LEDs are used: PB0,PB9,PB10, one pin (PA0 with button) reset sim800l, pin PA1 - PPS clock from GPS
+  - GPIO : three LEDs are used: PB0,PB9,PB10, one pin (PA0 with button) reset sim800l, pin PB12 - for working sensor DS18B20
   - I2C1 : master mode with a frequency of 400KHz (the bus serves ssd1306).
   - USART1 : parameters of port 115200 8N1 (transmit data with DMA) - a port for logging and receive any commands for control device.
   - USART2 : parameters of port 115200 8N1 (transmit data with DMA)- a port for send AT command to SIM800l module.
   - USART6 : parameters of port 9600 8N1 - the port for receive NMEA data from GPS module ATGM332D.
   - TIM3 : Timer 10 ms. and 1 second, implemented in the callback function.
+  - TIM10 : Timer 1 us., for working temperature sensor DS18B20.
   - RTC : real time clock, can be set using the command 'epoch_time=value:time_zone' or via sntp service
   - SPI1 : serves data-flash w25q64 : CS(PA4), SCK(PA5), MISO(PA6), MOSI(PA7) - this chip not used yet.
 * The system timer (TIM1) counts milliseconds from the start of operation of the device.
 * Data reception on all serial ports (USART1, USART2, USART6) is performed in the callback function of the interrupt handler.
   Received data is transferred to the corresponding tasks through specific queues.
-
+* Support receive sms messages (with concat parts of messages).
 
 
 AT-commands example:
 
 ```
-07.11 14:37:08 Start application version '1.3 (07.11.2021)'
-07.11 14:37:08 Start main thread...
+11.11 19:07:11 Start application version '1.5 (11.11.2021)'
+11.11 19:07:11 Start main thread...
 RDY
 +CFUN: 1
 +CPIN: READY

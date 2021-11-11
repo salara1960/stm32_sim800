@@ -76,6 +76,160 @@ void gsmReset()
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET);//LED OF*/
 }
 //-----------------------------------------------------------------------------------------
+
+#ifdef SET_SMS
+	#ifdef SET_SMS_QUEUE
+bool initSRECQ(s_recq_t *q)//s_recq_t recq;
+{
+//#ifdef USED_FREERTOS
+//	if (osSemaphoreAcquire(smsSem, 250) == osOK) {
+//#endif
+		q->put = q->get = 0;
+		for (uint8_t i = 0; i < MAX_SQREC; i++) {
+			q->rec[i].id = i;
+#ifdef SET_RECQ_STATIC
+			q->rec[i].adr[0] = '\0';
+#else
+			q->rec[i].adr = NULL;
+#endif
+		}
+//#ifdef USED_FREERTOS
+//		osSemaphoreRelease(smsSem);
+//	}
+//#endif
+	return true;
+}
+//-----------------------------------------------------------------------------
+void clearSRECQ(s_recq_t *q)
+{
+#ifdef USED_FREERTOS
+	if (osSemaphoreAcquire(smsSem, 250) == osOK) {
+#endif
+		q->put = q->get = 0;
+		for (uint8_t i = 0; i < MAX_SQREC; i++) {
+			q->rec[i].id = i;
+#ifdef SET_RECQ_STATIC
+			q->rec[i].adr[0] = '\0';
+#else
+			free(q->rec[i].adr);
+			q->rec[i].adr = NULL;
+#endif
+		}
+#ifdef USED_FREERTOS
+		osSemaphoreRelease(smsSem);
+	}
+#endif
+}
+//-----------------------------------------------------------------------------
+int8_t putSRECQ(char *adr, s_recq_t *q)
+{
+int8_t ret = -1;
+#ifdef USED_FREERTOS
+	if (osSemaphoreAcquire(smsSem, 250) == osOK) {
+#endif
+#ifdef SET_RECQ_STATIC
+		if (!strlen(q->rec[q->put].adr)) {
+			int len = strlen(adr);
+			if (len >= REC_BUF_LEN) len = REC_BUF_LEN - 1;
+			memcpy((char *)&q->rec[q->put].adr[0], adr, len);
+			q->rec[q->put].adr[len] = '\0';
+#else
+		if (q->rec[q->put].adr == NULL) {
+			q->rec[q->put].adr = adr;
+#endif
+			ret = q->rec[q->put].id;
+			q->put++;   if (q->put >= MAX_SQREC) q->put = 0;
+		}
+#ifdef USED_FREERTOS
+		osSemaphoreRelease(smsSem);
+	}
+#endif
+
+	return ret;
+}
+//-----------------------------------------------------------------------------
+int8_t getSRECQ(char *dat, s_recq_t *q)
+{
+int8_t ret = -1;
+int len = 0;
+
+#ifdef USED_FREERTOS
+	if (osSemaphoreAcquire(smsSem, 250) == osOK) {
+#endif
+	#ifdef SET_RECQ_STATIC
+			len = strlen(q->rec[q->get].adr);
+			if (len) {
+				ret = q->rec[q->get].id;
+				memcpy(dat, q->rec[q->get].adr, len);
+				q->rec[q->get].adr[0] = '\0';
+			}
+	#else
+			if (q->rec[q->get].adr != NULL) {
+				len = strlen(q->rec[q->get].adr);
+				ret = q->rec[q->get].id;
+				memcpy(dat, q->rec[q->get].adr, len);
+				free(q->rec[q->get].adr);
+				q->rec[q->get].adr = NULL;
+			}
+	#endif
+
+			if (ret >= 0) {
+				*(dat + len) = '\0';
+				q->get++;   if (q->get >= MAX_SQREC) q->get = 0;
+			}
+#ifdef USED_FREERTOS
+			osSemaphoreRelease(smsSem);
+		}
+#endif
+
+		return ret;
+}
+//------------------------------------------------------------------------------------------
+int8_t addSRECQ(char *txt, s_recq_t *q)
+{
+int8_t nrec = -1;
+uint16_t txt_len = strlen(txt);
+
+#ifdef SET_RECQ_STATIC
+	if (txt_len >= REC_BUF_LEN) {
+		txt_len = REC_BUF_LEN - 1;
+		txt[txt_len] = '\0';
+	}
+	if ((nrec = putSRECQ(txt, q)) >= 0) {
+		Report(__func__, true, "put record to queue OK (id=%d len=%d)\r\n", nrec, txt_len);
+	} else {
+		Report(__func__, true, "put record to queue error (len=%d)\r\n", txt_len);
+	}
+#else
+	int need_len = txt_len + 1;
+	if (need_len <= MAX_UART_BUF) need_len = MAX_UART_BUF;
+	char *rc = (char *)calloc(1, (size_t)need_len);
+	if (rc) {
+		int got_len = strlen(rc);
+		if (got_len >= need_len) {
+			memcpy(rc, txt, txt_len);
+			*(rc + txt_len) = '\0';
+			if ((nrec = putSRECQ(rc, q)) >= 0) {
+				Report(__func__, true, "put record to queue OK (id=%d len=%d/%d)\r\n", nrec, need_len, got_len);
+		    } else {
+				Report(__func__, true, "put record to queue error (len=%d/%d)\r\n", need_len, got_len);
+				free(rc);
+			}
+		} else {
+			Report(__func__, true, "error memory size %d != %d\r\n", need_len, got_len);
+			free(rc);
+		}
+	} else devError |= devMem;//Report(true, "[%s] : error get memory (len=%d)\r\n", __func__, need_len);
+#endif
+
+	return nrec;
+}
+	#endif
+#endif
+
+//-----------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------
 //        Функция инициализации очереди сообщений
 //
 bool initRECQ(s_recq_t *q)//s_recq_t recq;
@@ -205,16 +359,21 @@ struct tm ts;
 	sDate.Month   = ts.tm_mon + 1;
 	sDate.Date    = ts.tm_mday;
 	sDate.Year    = ts.tm_year;
-	if (HAL_RTC_SetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;//errLedOn(__func__);
+
+	//__HAL_RCC_RTC_DISABLE();
+
+	if (HAL_RTC_SetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
 	else {
 		sTime.Hours   = ts.tm_hour + tZone;
 		sTime.Minutes = ts.tm_min;
 		sTime.Seconds = ts.tm_sec;
-		if (HAL_RTC_SetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;//errLedOn(__func__);
+		if (HAL_RTC_SetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
 		else {
 			setDate = true;
 		}
 	}
+
+	//__HAL_RCC_RTC_ENABLE();
 }
 //------------------------------------------------------------------------------------------
 //       Функция возвращает текущее время (в формате epochtime) из модуля RTC
@@ -347,27 +506,21 @@ int dl = 0;
 //------------------------------------------------------------------------------------------
 bool set_DT()
 {
-bool ret = false;
-RTC_TimeTypeDef sTime;
-RTC_DateTypeDef sDate;
+struct tm ts = {
+	.tm_hour = DT.hour,
+	.tm_min  = DT.min,
+	.tm_sec  = DT.sec,
+	.tm_wday = 0,
+	.tm_mon  = DT.mon - 1,
+	.tm_mday = DT.day,
+	.tm_year = DT.year
+};
 
-	sDate.WeekDay = 0;
-	sDate.Month   = DT.mon;
-	sDate.Date    = DT.day;
-	sDate.Year    = DT.year;
-	if (HAL_RTC_SetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
-	else {
-		sTime.Hours   = DT.hour;// + DT.tz;
-		sTime.Minutes = DT.min;
-		sTime.Seconds = DT.sec;
-		if (HAL_RTC_SetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
-		else {
-			setDate = true;
-			ret = true;
-		}
-	}
+	tZone = 0;
+	set_Date(mktime(&ts));
+	tZone = DT.tz;
 
-	return ret;
+	return true;
 }
 //------------------------------------------------------------------------------------------
 void prnFlags(void *g)
@@ -401,6 +554,7 @@ int8_t parseEvent(char *in, void *g)
 {
 char *uks = NULL, *uki = NULL;
 int8_t id = -1, ret = -1;
+int i, j, k;
 
 	gsmFlags_t *gf = (gsmFlags_t *)g;
 
@@ -476,7 +630,10 @@ int8_t id = -1, ret = -1;
 					if (gf->tReady) {
 						if (checkDT(sntpDT)) {
 							gf->reqDT = 1;
-							if (set_DT()) gf->okDT = 1;
+							if (set_DT()) {
+								gf->okDT = 1;
+								Report(__func__, false, "Set date/time %d/%d/%d %d:%d:%d+%02d\r\n", DT.day, DT.mon, DT.year, DT.hour, DT.min, DT.sec, DT.tz);
+							}
 						}
 					}
 					/**/
@@ -493,21 +650,38 @@ int8_t id = -1, ret = -1;
 				gf->cmee = atoi(uks);
 			break;
 			case _CUSD://"+CUSD: ",//+CUSD: 0, "003200300030002E003000300020 .... 340023", 72
+#ifdef SET_SMS
 				if (cusd) {
 					free(cusd);
 					cusd = NULL;
 				}
-				cusd = (char *)calloc(1, MAX_SMS_BUF);
+				cusd = (char *)calloc(1, SMS_BUF_LEN);
 				if (cusd) {
 					uks += 4;//uk to begin ucs2 string
 					char *uke = strstr(uks, "\", 72");
 					if (uke) {
-						memset(cusd, 0, MAX_SMS_BUF);
+						memset(SMS_text, 0, SMS_BUF_LEN);
+						memset(cusd, 0, SMS_BUF_LEN);
 						memcpy(cusd, uks, uke - uks);
 						if (ucs2_to_utf8(cusd, NULL, (uint8_t *)SMS_text)) Report(NULL, false, "%s\r\n", SMS_text);
 					}
 					free(cusd); cusd = NULL;
 				} else devError |= devMem;
+#endif
+			break;
+			case _CMT:
+			case _SCLASS0:
+#ifdef SET_SMS
+				/**/
+				gf->sms = 1;
+				memset(SMS_text, 0, SMS_BUF_LEN);
+				k = strlen(in);
+				if (k > SMS_BUF_LEN - 3) k = SMS_BUF_LEN - 3;
+				strncpy(SMS_text, in, k);
+				strcat(SMS_text, eol);
+				//Report(NULL, false, "SMS_text:%s\r\n", in);
+				/**/
+#endif
 			break;
 			case _STATE:
 			{
@@ -532,51 +706,83 @@ int8_t id = -1, ret = -1;
 				gf->error = 0;
 			break;
 		}
+	} else {
+#ifdef SET_SMS
+		if (gf->sms) {
+			gf->sms = 0;
+			//
+			j = strlen(SMS_text);
+			i = strlen(in);
+			if ((j + i + 2) < SMS_BUF_LEN) {
+				strcat(SMS_text, in);//strcat(&SMS_text[j], in);
+				//if (!strstr(in, eol))
+					strcat(SMS_text, eol);
+				//if (i) Report(NULL, false, in);
+				memset(abcd, 0, sizeof(abcd));
+				memset(fromNum, 0, sizeof(fromNum));
+				sms_num = 0;
+				sms_len = conv_ucs2_text((uint8_t *)SMS_text, fromNum, abcd, 0);
+				if (sms_len > 0) {
+					Report(NULL, true, "[SMS] len=%u udhi=[%02X%02X%02X%02X%02X] from='%s' body:\r\n%.*s\r\n",
+							sms_len, abcd[0], abcd[1], abcd[2], abcd[3], abcd[4], fromNum, sms_len, SMS_text);
+					//
+					if ((abcd[0] == 1) && abcd[3]) {//with_UDHI and total > 0
+						memset((uint8_t *)&reco, 0, sizeof(s_udhi_t));
+						memcpy((uint8_t *)&reco, abcd, sizeof(abcd));
+						if (reco.total <= maxSMSPart) {
+							if (sms_len >= MaxBodyLen) sms_len = MaxBodyLen - 1;
+							memcpy(reco.txt, SMS_text, sms_len);
+							reco.len = sms_len;
+							if (PutSMSList(&reco) != 255) {
+								if (!wait_sms) wait_sms = get_tmr(wait_sms_time);//set timer for wait all patrs recv.
+								if (LookAllPart(reco.total) == reco.total) {//all parts are present -> concat begin
+									*SMS_text = '\0';
+									if (ConcatSMS(SMS_text, reco.total, &sms_num, &sms_len) == reco.total) {
+										Report(NULL, true, "[SMS] Concat message #%u (len=%u parts=%u) done:\r\n%.*s\r\n",
+												sms_num, sms_len, reco.total, sms_len, SMS_text);
+#ifdef SET_SMS_QUEUE
+										//----------------  check : command present in sms ?   ------------------------
+										checkSMS(SMS_text, fromNum);
+										//-----------------------------------------------------------------------------
+										//
+										 *smsTMP = '\0';
+										if (!makeSMSString(SMS_text, &sms_len, fromNum, sms_num, smsTMP, sizeof(smsTMP) - 1)) {
+											if (addSRECQ(smsTMP, &smsq) < 0) {
+												Report(NULL, true, smsTMP);
+											}
+										}
+#endif
+									}
+									InitSMSList();
+									wait_sms = 0;
+								}
+							}
+						}
+					} else {//without_UDHI
+#ifdef SET_SMS_QUEUE
+						//----------------  check : command present in sms ?   ------------------------
+						checkSMS(SMS_text, fromNum);
+						//-----------------------------------------------------------------------------
+						//
+						*smsTMP = '\0';
+						if (!makeSMSString(SMS_text, &sms_len, fromNum, sms_num, smsTMP, sizeof(smsTMP) - 1)) {
+							if (addRECQ(smsTMP, &smsq) < 0) {
+								Report(NULL, true, smsTMP);
+							}
+						}
+#endif
+					}
+				}
+				//*in = '\0';
+			} else Report(NULL, true, "Too long string - %d bytes\r\n", j + i + 2);
+		}
+#endif
 	}
 
 	return ret;
 }
 //------------------------------------------------------------------------------------------
-uint8_t hextobin(char st, char ml)
-{
-const char hex[16] = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
-uint8_t a = 255, b, c, i;
-
-	for	(i = 0; i < 16; i++) { if (st == hex[i]) { b = i; break; } else b = 255; }
-	for	(i = 0; i < 16; i++) { if (ml == hex[i]) { c = i; break; } else c = 255; }
-	if ((b != 255) && (c != 255)) { b = b << 4;   a = b | c; }
-
-	return a;
-}
 //-----------------------------------------------------------------------------------------
-int ucs2_to_utf8(char *buf_in, uint8_t *udl, uint8_t *utf8)
-{
-int ret = 0, i = 0, len;
-uint8_t a, b;
-char *ptr = buf_in;
-uint8_t *out = utf8;
-uint16_t ucs2;
-
-
-	if (!udl) len = strlen(buf_in) >> 2; else len = *udl >> 1;
-
-    while (i < len) {
-    	a = hextobin(*ptr, *(ptr + 1));   ptr += 2;
-    	b = hextobin(*ptr, *(ptr + 1));   ptr += 2;
-    	ucs2 = a;   ucs2 <<= 8;   ucs2 |= b;
-    	if (ucs2 < 0x80) {
-    		*out++ = (uint8_t)ucs2;
-    		ret++;
-    	} else {
-    		*out++ = (uint8_t)((ucs2 >> 6)   | 0xC0);
-    		*out++ = (uint8_t)((ucs2 & 0x3F) | 0x80);
-    		ret += 2;
-    	}
-    	i++;
-    }
-
-    return ret;
-}
 //-----------------------------------------------------------------------------------------
 
 

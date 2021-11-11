@@ -4,11 +4,13 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
+../Core/Src/ds18b20.c \
 ../Core/Src/fontik.c \
 ../Core/Src/freertos.c \
 ../Core/Src/func.c \
 ../Core/Src/gps.c \
 ../Core/Src/main.c \
+../Core/Src/sms.c \
 ../Core/Src/ssd1306.c \
 ../Core/Src/stm32f4xx_hal_msp.c \
 ../Core/Src/stm32f4xx_hal_timebase_tim.c \
@@ -18,11 +20,13 @@ C_SRCS += \
 ../Core/Src/w25.c 
 
 OBJS += \
+./Core/Src/ds18b20.o \
 ./Core/Src/fontik.o \
 ./Core/Src/freertos.o \
 ./Core/Src/func.o \
 ./Core/Src/gps.o \
 ./Core/Src/main.o \
+./Core/Src/sms.o \
 ./Core/Src/ssd1306.o \
 ./Core/Src/stm32f4xx_hal_msp.o \
 ./Core/Src/stm32f4xx_hal_timebase_tim.o \
@@ -32,11 +36,13 @@ OBJS += \
 ./Core/Src/w25.o 
 
 C_DEPS += \
+./Core/Src/ds18b20.d \
 ./Core/Src/fontik.d \
 ./Core/Src/freertos.d \
 ./Core/Src/func.d \
 ./Core/Src/gps.d \
 ./Core/Src/main.d \
+./Core/Src/sms.d \
 ./Core/Src/ssd1306.d \
 ./Core/Src/stm32f4xx_hal_msp.d \
 ./Core/Src/stm32f4xx_hal_timebase_tim.d \

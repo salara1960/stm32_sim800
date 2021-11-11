@@ -55,6 +55,7 @@ DMA_HandleTypeDef hdma_spi1_tx;
 DMA_HandleTypeDef hdma_spi1_rx;
 
 TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim10;
 
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
@@ -67,7 +68,7 @@ osThreadId_t mainTaskHandle;
 const osThreadAttr_t mainTask_attributes = {
   .name = "mainTask",
   .priority = (osPriority_t) osPriorityNormal2,
-  .stack_size = 768 * 4
+  .stack_size = 896 * 4
 };
 /* Definitions for gpsTask */
 osThreadId_t gpsTaskHandle;
@@ -76,13 +77,38 @@ const osThreadAttr_t gpsTask_attributes = {
   .priority = (osPriority_t) osPriorityNormal1,
   .stack_size = 384 * 4
 };
+/* Definitions for tempTask */
+osThreadId_t tempTaskHandle;
+const osThreadAttr_t tempTask_attributes = {
+  .name = "tempTask",
+  .priority = (osPriority_t) osPriorityNormal,
+  .stack_size = 256 * 4
+};
+/* Definitions for sem */
+osSemaphoreId_t semHandle;
+const osSemaphoreAttr_t sem_attributes = {
+  .name = "sem"
+};
 /* USER CODE BEGIN PV */
 //osSemaphoreId_t mainBinSemHandle;
 //const osSemaphoreAttr_t mainBinSem_attributes = {
 //  .name = "mainBinSem"
 //};
+//osThreadId_t gpsTaskHandle;
+//const osThreadAttr_t gpsTask_attributes = {
+//  .name = "gpsTask",
+//  .priority = (osPriority_t) osPriorityNormal1,
+//  .stack_size = 384 * 4
+//};
 
-
+#ifdef SET_SMS
+	#ifdef SET_SMS_QUEUE
+		osSemaphoreId_t smsSem;
+		const osSemaphoreAttr_t smsSem_attributes = {
+			.name = "smsSen"
+		};
+	#endif
+#endif
 
 //const char *version = "0.1 (21.10.2021)";// first version
 //const char *version = "0.2 (22.10.2021)";// todo fatfs
@@ -97,14 +123,17 @@ const osThreadAttr_t gpsTask_attributes = {
 //const char *version = "1.1 (05.11.2021)";// add gps module (on uart6 + pps_pin with interrupt by rising/falling edge)
 //const char *version = "1.2 (06.11.2021)";// add get date/time from SNTP server
 //const char *version = "1.3 (07.11.2021)";// add get date/time from SNTP server
-const char *version = "1.3 (07.11.2021)";// set to RTC date/time received from SNTP server
+//const char *version = "1.3 (07.11.2021)";// set to RTC date/time received from SNTP server
+//const char *version = "1.3.1 (07.11.2021)";// add tim10 and new Task - StartTemp() for ds18b20 sensor
+//const char *version = "1.4 (10.11.2021)";// add support ds18b20 sensor
+const char *version = "1.5 (11.11.2021)";// support recv. sms messages (with concat parts of messages)
 
 
-volatile time_t epoch = 1636366999;//1636288627;
+volatile time_t epoch = 1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
 						//1636208753;//1636148268;//1636114042;//1636106564;//1636045527;//1636022804;//1635975820;//1635956750;
 						//1635854199;//1635762840;//1635701599;//1635681180;//1635627245;//1635505880;//1635001599;//1634820289;
 uint32_t last_sec;
-uint8_t tZone = 2;
+int8_t tZone = 2;
 volatile uint32_t cnt_err = 0;
 volatile uint8_t restart_flag = 0;
 volatile uint32_t secCounter = 0;
@@ -152,6 +181,10 @@ RTC_HandleTypeDef *portRTC = &hrtc;
 #ifdef SET_GPS
 	UART_HandleTypeDef *portGPS = &huart6;//порт GPS модуля (ATGM332D)
 #endif
+#ifdef SET_TEMP_SENSOR
+	TIM_HandleTypeDef *tmrDS18B20 = &htim10;
+#endif
+
 
 uint8_t i2cRdy = 1;
 
@@ -175,7 +208,6 @@ volatile bool sntpInit = false;
 
 char *cmds = NULL;
 char *cusd = NULL;
-char SMS_text[MAX_SMS_BUF] = {0};
 
 const char *eol = "\r\n";
 
@@ -184,6 +216,24 @@ volatile uint32_t cnt_gps = 0;
 const char *cmd_adr = NULL;
 
 dattim_t DT;//date and time from sntp server
+
+#ifdef SET_SMS
+	const char *sim_auth_num = "79097965036";
+	const char *sim_num = "+79062103497";
+	const char *dev_name = "STM32_SIM800l";
+	char fromNum[lenFrom] = {0};
+	uint8_t abcd[5] = {0};
+	uint16_t sms_num, sms_len;
+	uint8_t sms_total;
+	int8_t nrec = -1;
+	s_udhi_t reco;
+	uint32_t wait_sms = 0;
+	#ifdef SET_SMS_QUEUE
+		bool smsFlag = false;
+		s_recq_t smsq;
+	#endif
+#endif
+
 
 //------------   AT команды GSM модуля   ------------------
 //const int8_t cmd_iniMax = 13;
@@ -225,7 +275,7 @@ const ats_t cmd_net[cmd_netMax] = {//SET CONTEXT AND MAKE CONNECTION
 		{"AT+CIFSR\r\n",""},//10.206.118.240
 		{"AT+CIPSTATUS\r\n","OK"},//after OK -> STATE: IP STATUS
 		{"AT+CIPSTART=\"TCP\",","OK"},//\"213.149.17.142\",8778\r\n","OK"}//after OK -> CONNECT OK | "SRV"
-
+		//
 		{"AT+CIPSEND\r\n",">"},//send data after '>'
 		//> QWERTY
 		//SEND OK
@@ -254,7 +304,7 @@ const ats_t cmd_any[cmd_anyMax] = {
 		{"AT+CCLK?\r\n","OK"}//+CCLK: "21/11/01,12:49:31+02"
 };
 //------------   События от GSM модуля   ------------------
-//const int8_t gsmEventMax = 18;
+//const int8_t gsmEventMax = 21;
 const char *gsmEvent[gsmEventMax] = {
 		"RDY",
 		"+CFUN: ",//1
@@ -271,6 +321,8 @@ const char *gsmEvent[gsmEventMax] = {
 		"+CBC: ",//0,73,3988
 		"+CMEE: ",//1
 		"+CUSD: ",//+CUSD: 0, "003200300030002E003000300020 .... 340023", 72
+		"+CMT: ",
+		"+SCLASS0: ",
 		"STATE: ",//"IP INITIAL","IP START","IP GPRSACT","IP STATUS"
 		"CONNECT OK",
 		"ERROR",
@@ -294,7 +346,7 @@ const int8_t dBmRSSI[MAX_RSSI] = {
 int cmdID = -1;
 int evtID = -1;
 
-//uint32_t long_pps = 0, last_pps = 0;
+
 
 /* USER CODE END PV */
 
@@ -309,8 +361,10 @@ static void MX_RTC_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_USART6_UART_Init(void);
+static void MX_TIM10_Init(void);
 void StartDefaultTask(void *argument);
 void StartGps(void *argument);
+void StartTemp(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -373,6 +427,7 @@ int main(void)
   MX_TIM3_Init();
   MX_USART2_UART_Init();
   MX_USART6_UART_Init();
+  MX_TIM10_Init();
   /* USER CODE BEGIN 2 */
 
       HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
@@ -387,6 +442,9 @@ int main(void)
 
       // start timer3 in interrupt mode
       HAL_TIM_Base_Start_IT(&htim3);
+      // start timer10 in interrupt mode
+      HAL_TIM_Base_Start_IT(&htim10);
+
       //"start" rx_interrupt
       HAL_UART_Receive_IT(portLOG, (uint8_t *)&uRxByte, 1);
       //"start" rx_gsm_interrupt
@@ -407,8 +465,11 @@ int main(void)
       HAL_Delay(250);
 
       cmds = (char *)calloc(1, CMD_LEN + 1);
-      cusd = (char *)calloc(1, MAX_SMS_BUF);
+#ifdef SET_SMS
+      cusd = (char *)calloc(1, SMS_BUF_LEN);
 
+      InitSMSList();
+#endif
       //-------------------------------------------------
 
       oled_withDMA = 1;
@@ -416,12 +477,8 @@ int main(void)
       i2c_ssd1306_init();//screen INIT
       i2c_ssd1306_pattern();//set any params for screen
       //i2c_ssd1306_invert();
-      i2c_ssd1306_scroll(1, 8, OLED_CMD_SHIFT_STOP);
+      //i2c_ssd1306_scroll(1, 8, OLED_CMD_SHIFT_STOP);
       i2c_ssd1306_clear();//clear screen
-
-      //---------------------------------------------------
-
-
 
       //---------------------------------------------------
 
@@ -434,9 +491,20 @@ int main(void)
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 
+  /* Create the semaphores(s) */
+  /* creation of sem */
+  semHandle = osSemaphoreNew(1, 1, &sem_attributes);
+
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
   //mainBinSemHandle = osSemaphoreNew(1, 1, &mainBinSem_attributes);
+#ifdef SET_SMS
+	#ifdef SET_SMS_QUEUE
+  		smsFlag = initSRECQ(&smsq);
+
+  		smsSem = osSemaphoreNew(1, 1, &smsSem_attributes);
+	#endif
+#endif
   /* USER CODE END RTOS_SEMAPHORES */
 
   /* USER CODE BEGIN RTOS_TIMERS */
@@ -458,13 +526,21 @@ int main(void)
 
 
   //HAL_UART_Receive_IT(portGSM, (uint8_t *)&gsmByte, 1);
+
+  //---------------------------------------------------
+
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
   /* creation of mainTask */
   mainTaskHandle = osThreadNew(StartDefaultTask, NULL, &mainTask_attributes);
+
   /* creation of gpsTask */
   gpsTaskHandle = osThreadNew(StartGps, NULL, &gpsTask_attributes);
+
+  /* creation of tempTask */
+  tempTaskHandle = osThreadNew(StartTemp, NULL, &tempTask_attributes);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
@@ -719,6 +795,37 @@ static void MX_TIM3_Init(void)
 }
 
 /**
+  * @brief TIM10 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM10_Init(void)
+{
+
+  /* USER CODE BEGIN TIM10_Init 0 */
+
+  /* USER CODE END TIM10_Init 0 */
+
+  /* USER CODE BEGIN TIM10_Init 1 */
+
+  /* USER CODE END TIM10_Init 1 */
+  htim10.Instance = TIM10;
+  htim10.Init.Prescaler = 83;
+  htim10.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim10.Init.Period = 65535;
+  htim10.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim10.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim10) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM10_Init 2 */
+
+  /* USER CODE END TIM10_Init 2 */
+
+}
+
+/**
   * @brief USART1 Initialization Function
   * @param None
   * @retval None
@@ -865,13 +972,10 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(SPI1_NSS_GPIO_Port, SPI1_NSS_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, LED_ERROR_Pin|LED_Pin|LED_PPS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, LED_ERROR_Pin|LED_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : GPS_PPS_Pin */
-  GPIO_InitStruct.Pin = GPS_PPS_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPS_PPS_GPIO_Port, &GPIO_InitStruct);
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(DS18B20_GPIO_Port, DS18B20_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin : SPI1_NSS_Pin */
   GPIO_InitStruct.Pin = SPI1_NSS_Pin;
@@ -887,16 +991,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : LED_PPS_Pin */
-  GPIO_InitStruct.Pin = LED_PPS_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  /*Configure GPIO pin : DS18B20_Pin */
+  GPIO_InitStruct.Pin = DS18B20_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  HAL_GPIO_Init(LED_PPS_GPIO_Port, &GPIO_InitStruct);
-
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI1_IRQn, 2, 0);
-  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+  HAL_GPIO_Init(DS18B20_GPIO_Port, &GPIO_InitStruct);
 
 }
 
@@ -1042,14 +1142,12 @@ void serialGPS()
 	}
 }
 //-------------------------------------------------------------------------------------------
+/*
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-	if (GPIO_Pin == GPS_PPS_Pin) {
-		//long_pps = HAL_GetTick() - last_pps;
-		HAL_GPIO_TogglePin(LED_PPS_GPIO_Port, LED_PPS_Pin);//set ON/OFF LED_PPS
-		//last_pps = HAL_GetTick();
-	}
+	if (GPIO_Pin == GPS_PPS_Pin) HAL_GPIO_TogglePin(LED_PPS_GPIO_Port, LED_PPS_Pin);
 }
+*/
 #endif
 //------------------------------------------------------------------------------------------
 //                      CallBack функция портов UART,
@@ -1146,7 +1244,7 @@ void StartDefaultTask(void *argument)
 	char buf2[MAX_GSM_BUF] = {0};
 	char scr[MAX_GSM_BUF] = {0};
 	char cmdBuf[128] = {0};
-	int8_t slin = 3, elin = 7, clin = 3, at_line = 2, err_line = 8;
+	int8_t slin = 3, elin = 6, clin = 3, at_line = 2, err_line = 8;
 
 
 	int8_t cur_cmd = -1;
@@ -1160,7 +1258,7 @@ void StartDefaultTask(void *argument)
 	uint32_t tmr_next = 0;
 	uint32_t tmr_ack = 0;
 	uint8_t atTotal = 0;
-	int8_t result = -1;
+//	int8_t result = -1;
 
 
 	uint32_t cur_sec = get_tmr10(0);
@@ -1199,15 +1297,9 @@ void StartDefaultTask(void *argument)
 				Report(NULL, false, "%s", buf2);
 				//
 				if ((uks = strstr(buf2, "\r\n")) != NULL) *uks = '\0';
-				result = parseEvent(buf2, (void *)&gsmFlags);
-				/*
-				if (gsmFlags.reqDT && gsmFlags.tReady) {
-					if (checkDT(sntpDT)) {
-						gsmFlags.reqDT = 0;
-						if (set_DT()) gsmFlags.okDT = 1;
-					}
-				}
-				*/
+				//result =
+						parseEvent(buf2, (void *)&gsmFlags);
+				//
 				if (at_auto) {
 					if (uk_ack) {
 						if (strstr(buf2, uk_ack)) {
@@ -1328,9 +1420,7 @@ void StartDefaultTask(void *argument)
 										}
 #ifdef SET_OLED_I2C
 										strcpy(scr, "Init GSM done");
-										//sprintf(scr, "%lu", long_pps);
-										//if (strlen(scr) > MAX_FONT_CHAR) scr[MAX_FONT_CHAR] = '\0';
-										i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, err_line, false);
+										i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, err_line, true);
 #endif
 									} else if (grp_cmd == seqTime) {
 										sntpInit = true;
@@ -1339,7 +1429,7 @@ void StartDefaultTask(void *argument)
 											strcpy(scr, "Time set done");
 										else
 											strcpy(scr, "Time get done");
-										i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, err_line, false);
+										i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, err_line, true);
 #endif
 									}
 								}
@@ -1376,6 +1466,37 @@ void StartDefaultTask(void *argument)
 				result = -1;
 			}
 		}*/
+		//
+#ifdef SET_SMS
+		//-------------------------   concat sms parts by timer   ------------------------
+		if (wait_sms) {
+			if (check_tmr(wait_sms)) {
+				wait_sms = 0;
+				sms_total = getSMSTotalCounter();
+				if (sms_total) {
+					*SMS_text = '\0';   sms_num = 0;
+					if (ConcatSMS(SMS_text, sms_total, &sms_num, &sms_len) == sms_total) {
+						Report(NULL, true, "[SMS] Concat message #%u with len %u by timeout:\r\n%.*s\r\n",
+								     sms_num, sms_len, sms_len, SMS_text);
+#ifdef SET_SMS_QUEUE
+						//----------------  check : command present in sms ?   ------------------------
+						checkSMS(SMS_text, fromNum);
+						//-----------------------------------------------------------------------------
+						//
+						*smsTMP = '\0';
+						if (!makeSMSString(SMS_text, &sms_len, fromNum, sms_num, smsTMP, sizeof(smsTMP) - 1)) {
+							if (addSRECQ(smsTMP, &smsq) < 0) {
+								Report(NULL, true, smsTMP);
+							}
+						}
+#endif
+					}
+				}
+				InitSMSList();
+			}
+		}
+		//--------------------------------------------------------------------------------
+#endif
 
 		//
 		//
@@ -1389,7 +1510,7 @@ void StartDefaultTask(void *argument)
 			errLedOn(NULL);
 #ifdef SET_OLED_I2C
 			sprintf(scr, "err: 0x%X", devError);
-			i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, err_line, false);
+			i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, err_line, true);
 #endif
 			devError = 0;
 		}
@@ -1414,7 +1535,6 @@ void StartDefaultTask(void *argument)
 * @retval None
 */
 /* USER CODE END Header_StartGps */
-
 void StartGps(void *argument)
 {
   /* USER CODE BEGIN StartGps */
@@ -1459,6 +1579,102 @@ void StartGps(void *argument)
   /* USER CODE END StartGps */
 }
 
+/* USER CODE BEGIN Header_StartTemp */
+/**
+* @brief Function implementing the tempTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTemp */
+void StartTemp(void *argument)
+{
+  /* USER CODE BEGIN StartTemp */
+#ifdef SET_TEMP_SENSOR
+  /* Infinite loop */
+
+uint8_t	Ds18b20TryToFind = 5;
+char stx[64] = {0};
+
+	do
+	{
+		OneWire_Init(&OneWire, DS18B20_GPIO_Port, DS18B20_Pin);
+		TempSensorCount = 0;
+
+		while (HAL_GetTick() < 3000) Ds18b20Delay(50);
+
+		OneWireDevices = OneWire_First(&OneWire);
+		while (OneWireDevices) {
+			Ds18b20Delay(100);
+			TempSensorCount++;
+			OneWire_GetFullROM(&OneWire, ds18b20[TempSensorCount - 1].Address);
+			OneWireDevices = OneWire_Next(&OneWire);
+		}
+		if (TempSensorCount > 0) break;
+		Ds18b20TryToFind--;
+
+		if (restart_flag) break;
+
+	} while (Ds18b20TryToFind > 0);
+
+	if (TempSensorCount > 0) strcpy(stx, "DS18B20 present");
+						else strcpy(stx, "DS18B20 not find");
+	i2c_ssd1306_text_xy(mkLineCenter(stx, FONT_WIDTH), 1, 7, false);
+
+/**/
+	while (!restart_flag && Ds18b20TryToFind) {
+
+		for (uint8_t i = 0; i < TempSensorCount; i++) {
+			Ds18b20Delay(50);
+			DS18B20_SetResolution(&OneWire, ds18b20[i].Address, DS18B20_Resolution_12bits);
+			Ds18b20Delay(50);
+			DS18B20_DisableAlarmTemperature(&OneWire,  ds18b20[i].Address);
+		}
+		for (;;) {
+			while (!_DS18B20_UPDATE_INTERVAL_MS) {
+				if (Ds18b20StartConvert == 1) break;
+				Ds18b20Delay(10);
+			}
+			Ds18b20Timeout=_DS18B20_CONVERT_TIMEOUT_MS/10;
+			DS18B20_StartAll(&OneWire);
+			osDelay(100);
+			while (!DS18B20_AllDone(&OneWire)) {
+				osDelay(10);
+				Ds18b20Timeout -= 1;
+				if (!Ds18b20Timeout) break;
+			}
+			if (Ds18b20Timeout > 0) {
+				for (uint8_t i = 0; i < TempSensorCount; i++) {
+					Ds18b20Delay(1000);
+					ds18b20[i].DataIsValid = DS18B20_Read(&OneWire, ds18b20[i].Address, &ds18b20[i].Temperature);
+				}
+			} else {
+				for (uint8_t i = 0; i < TempSensorCount; i++) ds18b20[i].DataIsValid = false;
+			}
+			Ds18b20StartConvert = 0;
+			osDelay(2500);//_DS18B20_UPDATE_INTERVAL_MS);
+			//
+#ifdef SET_FLOAT_PART
+			s_float_t flo = {0,0};
+			floatPart(ds18b20[0].Temperature, &flo);
+			sprintf(stx, "temp:%lu.%lu%c", flo.cel, flo.dro / 10000, 31);
+#else
+			sprintf(stx, "temp:%5.2f", ds18b20[0].Temperature);
+#endif
+			i2c_ssd1306_text_xy(mkLineCenter(stx, FONT_WIDTH), 1, 7, false);
+			//
+		}
+
+	}
+/**/
+
+#endif
+
+
+  	osThreadExit();
+
+  /* USER CODE END StartTemp */
+}
+
  /**
   * @brief  Period elapsed callback in non blocking mode
   * @note   This function is called  when TIM1 interrupt took place, inside
@@ -1492,6 +1708,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	  	  }
 	  }
   }
+#ifdef SET_TEMP_SENSOR
+  else if (htim->Instance == TIM10) {
+
+  }
+#endif
   /* USER CODE END Callback 1 */
 }
 

@@ -5,7 +5,7 @@
  *      Author: alarm
  */
 
-#define MAX_UART_BUF 768
+#define MAX_UART_BUF 896
 
 #define SET_STATIC_MEM
 //#define SET_CALLOC_MEM
@@ -21,6 +21,17 @@
 #define SET_FLOAT_PART
 
 //#define SET_GPS
+
+#define SET_TEMP_SENSOR
+
+#define USED_FREERTOS
+
+#define SET_SMS
+#ifdef SET_SMS
+	//#define SET_SMS_QUEUE
+	//#define SET_RECQ_STATIC
+#endif
+
 
 
 

@@ -32,6 +32,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+
 #include <malloc.h>
 #include <stdbool.h>
 #include <string.h>
@@ -41,6 +42,9 @@ extern "C" {
 #include <time.h>
 #include <math.h>
 #include <stdarg.h>
+
+#include "cmsis_os.h"
+
 #include "hdr.h"
 
 //#include "usb_device.h"
@@ -54,6 +58,13 @@ extern "C" {
 #ifdef SET_OLED_I2C
 	#include "ssd1306.h"
 #endif
+#ifdef SET_TEMP_SENSOR
+	#include "ds18b20.h"
+#endif
+#ifdef SET_SMS
+	#include "sms.h"
+#endif
+
 
 #include "gps.h"
 
@@ -150,6 +161,8 @@ enum {
 	_CBC,
 	_CMEE,
 	_CUSD,
+	_CMT,
+	_SCLASS0,
 	_STATE,
 	_CONNECTOK,
 	_ERROR,
@@ -159,7 +172,9 @@ enum {
 enum {
 	seqInit = 0,
 	seqTime,
-	seqNet
+	seqNet,
+	seqRadio,
+	seqAny
 };
 
 #define _10ms 1
@@ -211,7 +226,7 @@ enum {
 #define min_wait_ms 350
 #define max_wait_ms 750
 
-#define MAX_SMS_BUF  384
+//#define MAX_SMS_BUF  384
 #define MAX_FIFO_SIZE 48
 #define MAX_GSM_BUF   512//768
 #define MAX_GPS_BUF   128
@@ -231,6 +246,7 @@ enum {
 #endif
 
 uint8_t devError;
+const char *eol;
 
 #pragma pack(push,1)
 typedef struct {
@@ -245,6 +261,7 @@ typedef struct {
 	unsigned tReady:1;
 	unsigned reqDT:1;
 	unsigned okDT:1;
+	unsigned sms:1;
 	unsigned state:2;
 	unsigned connect:1;
 	unsigned error:1;
@@ -294,21 +311,18 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define GPS_PPS_Pin GPIO_PIN_1
-#define GPS_PPS_GPIO_Port GPIOA
-#define GPS_PPS_EXTI_IRQn EXTI1_IRQn
 #define SPI1_NSS_Pin GPIO_PIN_4
 #define SPI1_NSS_GPIO_Port GPIOA
 #define LED_ERROR_Pin GPIO_PIN_0
 #define LED_ERROR_GPIO_Port GPIOB
 #define LED_Pin GPIO_PIN_10
 #define LED_GPIO_Port GPIOB
+#define DS18B20_Pin GPIO_PIN_12
+#define DS18B20_GPIO_Port GPIOB
 #define GPS_TX_Pin GPIO_PIN_11
 #define GPS_TX_GPIO_Port GPIOA
 #define GPS_RX_Pin GPIO_PIN_12
 #define GPS_RX_GPIO_Port GPIOA
-#define LED_PPS_Pin GPIO_PIN_9
-#define LED_PPS_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 #define W25_CS_GPIO_Port SPI1_NSS_GPIO_Port
@@ -316,6 +330,14 @@ void Error_Handler(void);
 
 #ifdef SET_STATIC_MEM
 	char PrnBuf[MAX_UART_BUF];// Служебный буфер для функции Report()
+#endif
+
+//#ifdef SET_TEMP_SENSOR
+//	#define	_DS18B20_GPIO	DS18B20_GPIO_Port
+//	#define	_DS18B20_PIN	DS18B20_Pin
+//#endif
+#ifdef USED_FREERTOS
+	osSemaphoreId_t semHandle;
 #endif
 
 volatile bool setDate;
@@ -326,14 +348,15 @@ I2C_HandleTypeDef  *portOLED;//порт OLED дисплея (ssd1306)
 SPI_HandleTypeDef  *portFLASH;//порт flash-памяти (w25q64)
 RTC_HandleTypeDef  *portRTC;
 UART_HandleTypeDef *portGPS;//порт GPS модуля (ATGM332D)
+TIM_HandleTypeDef *tmrDS18B20;
 
 
 #define cmd_iniMax  13
-#define cmd_timeMax  8//7
+#define cmd_timeMax  8
 #define cmd_netMax  11
 #define cmd_radioMax 5
-#define cmd_anyMax   8//7
-#define gsmEventMax 19
+#define cmd_anyMax   8
+#define gsmEventMax 21
 #define gsmStateMax  4
 
 #define MAX_RSSI    32
@@ -348,10 +371,29 @@ int8_t gsmRSSI;
 uint16_t VCC;
 char sntpDT[24];
 const int8_t dBmRSSI[MAX_RSSI];
-char SMS_text[MAX_SMS_BUF];
+
 char *cusd;
 dattim_t DT;
 
+
+#ifdef SET_SMS
+	#define len_From 32
+
+	osSemaphoreId_t smsSem;
+
+	const char *sim_auth_num;
+	const char *sim_num;
+	const char *dev_name;
+	char fromNum[len_From];
+	uint8_t abcd[5];
+	uint16_t sms_num, sms_len;
+	uint8_t sms_total;
+	int8_t nrec;
+	s_udhi_t reco;
+	uint32_t wait_sms;
+	bool smsFlag;
+	s_recq_t smsq;
+#endif
 
 void *getMem(size_t len);
 void freeMem(void *mem);

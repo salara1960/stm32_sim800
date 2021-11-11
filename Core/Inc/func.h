@@ -5,9 +5,12 @@
 #include "main.h"
 
 //------------------------------------------------------------------------
+#define REC_BUF_LEN MAX_UART_BUF
 
-//#define MAX_QMSG 8
-#define MAX_QREC 64//16
+
+#define MAX_QREC 16//64//16
+#define MAX_SQREC 8//64//16
+
 
 #ifdef SET_STATIC_MEM
 	char PrnBuf[MAX_UART_BUF];// Служебный буфер для функции Report()
@@ -38,6 +41,7 @@ typedef struct s_recq_t {
 } s_recq_t;
 #pragma pack(pop)
 
+
 //------------------------------------------------------------------------
 
 extern volatile bool setDate;
@@ -45,7 +49,7 @@ extern volatile uint32_t extDate;
 extern uint8_t uartRdy;
 extern volatile uint32_t secCounter;
 extern volatile uint32_t HalfSecCounter;
-extern uint8_t tZone;
+extern int8_t tZone;
 
 //------------------------------------------------------------------------
 #ifdef SET_FLOAT_PART
@@ -65,6 +69,16 @@ bool check_hstmr(uint64_t hs);
 
 void gsmReset();
 
+#ifdef SET_SMS
+	#ifdef SET_SMS_QUEUE
+		bool initSRECQ(s_recq_t *q);
+		void clearSRECQ(s_recq_t *q);
+		int8_t putSRECQ(char *adr, s_recq_t *q);
+		int8_t getSRECQ(char *dat, s_recq_t *q);
+		int8_t addSRECQ(char *txt, s_recq_t *q);
+	#endif
+#endif
+
 bool initRECQ(s_recq_t *q);//s_recq_t recq;
 bool clearRECQ(s_recq_t *q);
 int8_t putRECQ(char *adr, s_recq_t *q);
@@ -79,10 +93,10 @@ bool set_DT();
 void prnFlags(void *g);
 bool checkDT(char *str);
 int8_t parseEvent(char *in, void *g);
-uint8_t hextobin(char st, char ml);
-int ucs2_to_utf8(char *buf_in, uint8_t *udl, uint8_t *utf8);
-
-
+#ifdef SET_SMS
+	//extern uint8_t hextobin(char st, char ml);
+	extern int ucs2_to_utf8(char *buf_in, uint8_t *udl, uint8_t *utf8);
+#endif
 
 //------------------------------------------------------------------------
 
