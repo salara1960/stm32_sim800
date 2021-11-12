@@ -236,6 +236,8 @@ enum {
 
 #define CMD_REPEAT 5
 
+#define MAX_FREQ_LIST 8
+
 #ifdef SET_OLED_I2C
 	I2C_HandleTypeDef *portOLED;
 	uint8_t i2cRdy;
@@ -245,8 +247,11 @@ enum {
 	uint8_t spiRdy;
 #endif
 
+volatile time_t epoch;
 uint8_t devError;
 const char *eol;
+int8_t indList;
+uint16_t freqList[MAX_FREQ_LIST];
 
 #pragma pack(push,1)
 typedef struct {
@@ -262,6 +267,8 @@ typedef struct {
 	unsigned reqDT:1;
 	unsigned okDT:1;
 	unsigned sms:1;
+	unsigned rlist:1;
+	unsigned ropen:1;
 	unsigned state:2;
 	unsigned connect:1;
 	unsigned error:1;
@@ -354,7 +361,7 @@ TIM_HandleTypeDef *tmrDS18B20;
 #define cmd_iniMax  13
 #define cmd_timeMax  8
 #define cmd_netMax  11
-#define cmd_radioMax 5
+#define cmd_radioMax 4//5
 #define cmd_anyMax   8
 #define gsmEventMax 21
 #define gsmStateMax  4

@@ -506,6 +506,8 @@ int dl = 0;
 //------------------------------------------------------------------------------------------
 bool set_DT()
 {
+bool ret = false;
+/*
 struct tm ts = {
 	.tm_hour = DT.hour,
 	.tm_min  = DT.min,
@@ -516,11 +518,35 @@ struct tm ts = {
 	.tm_year = DT.year
 };
 
-	tZone = 0;
-	set_Date(mktime(&ts));
-	tZone = DT.tz;
+	time_t ep = mktime(&ts);
+	if ((uint32_t)ep >= (time_t)epoch) {
+		tZone = 0;
+		set_Date(ep);
+		tZone = DT.tz;
+		ret = true;
+	}
+*/
+RTC_TimeTypeDef sTime;
+RTC_DateTypeDef sDate;
 
-	return true;
+	sDate.WeekDay = RTC_WEEKDAY_FRIDAY;
+	sDate.Month   = DT.mon - 1;
+	sDate.Date    = DT.day;
+	sDate.Year    = DT.year;
+	sTime.Hours   = DT.hour;// + tZone;
+	sTime.Minutes = DT.min;
+	sTime.Seconds = DT.sec;
+
+	if (HAL_RTC_SetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
+	else {
+		if (HAL_RTC_SetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
+		else {
+			setDate = true;
+			ret = true;
+		}
+	}
+
+	return ret;
 }
 //------------------------------------------------------------------------------------------
 void prnFlags(void *g)
@@ -540,12 +566,41 @@ void prnFlags(void *g)
 bool checkDT(char *str)//21/11/01,12:49:31+02
 {
 bool ret = false;
+//int8_t cnt = 0;
 
 	if (strchr(str, '+')) {
-		if (sscanf(str, "%d/%d/%d,%d:%d:%d+%d", &DT.year, &DT.mon, &DT.day, &DT.hour, &DT.min, &DT.sec, &DT.tz) >= 1) ret = true;
+		if (sscanf(str, "%02d/%02d/%02d,%02d:%02d:%02d+%02d", &DT.year, &DT.mon, &DT.day, &DT.hour, &DT.min, &DT.sec, &DT.tz) == 7) ret = true;
 	} else if (strchr(str, '-')) {
-		if (sscanf(str, "%d/%d/%d,%d:%d:%d-%d", &DT.year, &DT.mon, &DT.day, &DT.hour, &DT.min, &DT.sec, &DT.tz) >= 1) ret = true;
+		if (sscanf(str, "%02d/%02d/%02d,%02d:%02d:%02d-%02d", &DT.year, &DT.mon, &DT.day, &DT.hour, &DT.min, &DT.sec, &DT.tz) == 7) ret = true;
 	}
+/*
+	if (ret) {
+		if (!IS_RTC_YEAR(DT.year)) {
+			ret = false;
+			cnt = 1;
+		} else if (!IS_RTC_MONTH(DT.mon)) {
+			ret = false;
+			cnt = 2;
+		} else if (!IS_RTC_DATE(DT.day)) {
+			ret = false;
+			cnt = 3;
+		} else if (!IS_RTC_HOUR24(DT.hour)) {
+			ret = false;
+			cnt = 4;
+		} else if (IS_RTC_MINUTES(DT.min)) {
+			ret = false;
+			cnt = 5;
+		} else if (!IS_RTC_SECONDS(DT.sec)) {
+			ret = false;
+			cnt = 6;
+		}
+		if (!ret) {
+			Report(__func__, false,
+					"Error %d date/time %02d/%02d/%02d %02d:%02d:%02d+%02d !\r\n", cnt,
+					DT.day, DT.mon, DT.year, DT.hour, DT.min, DT.sec, DT.tz);
+		}
+	}
+*/
 
 	return ret;
 }
@@ -632,7 +687,9 @@ int i, j, k;
 							gf->reqDT = 1;
 							if (set_DT()) {
 								gf->okDT = 1;
-								Report(__func__, false, "Set date/time %d/%d/%d %d:%d:%d+%02d\r\n", DT.day, DT.mon, DT.year, DT.hour, DT.min, DT.sec, DT.tz);
+								Report(__func__, false,
+										"Set date/time %02d/%02d/%02d %02d:%02d:%02d+%02d OK !\r\n",
+										DT.day, DT.mon, DT.year, DT.hour, DT.min, DT.sec, DT.tz);
 							}
 						}
 					}
@@ -700,10 +757,12 @@ int i, j, k;
 			case _ERROR:
 				gf->error = 1;
 				gf->ok = 0;
+				if (gf->rlist) gf->rlist = 0;
 			break;
 			case _OK:
 				gf->ok = 1;
 				gf->error = 0;
+				if (gf->rlist) gf->rlist = 0;
 			break;
 		}
 	} else {
@@ -775,6 +834,14 @@ int i, j, k;
 				}
 				//*in = '\0';
 			} else Report(NULL, true, "Too long string - %d bytes\r\n", j + i + 2);
+		} else if (gf->rlist) {
+			int dl = strlen(in);
+			if ((dl >= 3) && (dl <= 4)) {
+				indList++;
+				if (indList < MAX_FREQ_LIST) {
+					freqList[indList] = (uint16_t)atoi(in);
+				}
+			}
 		}
 #endif
 	}

@@ -126,21 +126,26 @@ const osSemaphoreAttr_t sem_attributes = {
 //const char *version = "1.3 (07.11.2021)";// set to RTC date/time received from SNTP server
 //const char *version = "1.3.1 (07.11.2021)";// add tim10 and new Task - StartTemp() for ds18b20 sensor
 //const char *version = "1.4 (10.11.2021)";// add support ds18b20 sensor
-const char *version = "1.5 (11.11.2021)";// support recv. sms messages (with concat parts of messages)
+//const char *version = "1.5 (11.11.2021)";// support recv. sms messages (with concat parts of messages)
+const char *version = "1.5.1 (12.11.2021)";
 
 
-volatile time_t epoch = 1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
+volatile time_t epoch = 1636714630;//1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
 						//1636208753;//1636148268;//1636114042;//1636106564;//1636045527;//1636022804;//1635975820;//1635956750;
 						//1635854199;//1635762840;//1635701599;//1635681180;//1635627245;//1635505880;//1635001599;//1634820289;
 uint32_t last_sec;
 int8_t tZone = 2;
 volatile uint32_t cnt_err = 0;
 volatile uint8_t restart_flag = 0;
+volatile uint8_t sntp_flag = 0;
+volatile uint8_t radio_flag = 0;
 volatile uint32_t secCounter = 0;
 volatile uint32_t HalfSecCounter = 0;
 volatile bool setDate = false;
 const char *_extDate = "epoch=";
 const char *_restart = "restart";
+const char *_sntp = "sntp";
+const char *_radio = "radio";
 const char *_flags = "flags";
 volatile bool prn_flags = false;
 volatile uint32_t extDate = 0;
@@ -234,6 +239,9 @@ dattim_t DT;//date and time from sntp server
 	#endif
 #endif
 
+int8_t indList = -1;
+uint16_t freqList[MAX_FREQ_LIST] = {0};
+
 
 //------------   AT команды GSM модуля   ------------------
 //const int8_t cmd_iniMax = 13;
@@ -284,13 +292,13 @@ const ats_t cmd_net[cmd_netMax] = {//SET CONTEXT AND MAKE CONNECTION
 		{"AT+CIPCLOSE\r\n","CLOSE OK"},
 		{"AT+CIPSHUT\r\n","SHUT OK"}
 };
-//const int8_t cmd_radioMax = 5;
+//const int8_t cmd_radioMax = 4;
 const ats_t cmd_radio[cmd_radioMax] = {
 		{"AT+FMOPEN=0\r\n","OK"},//   ; вкыл
-		{"AT+FMVOLUME=","OK"},//6 ;громкость от 0 до 6           | 6 + eol
-		{"AT+FMSCAN\r\n",""},// list of founded freq
-		{"AT+FMFREQ=","OK"},//1025 ; установить чатоту 102.5 Мгц | 1025 + eol
-		{"AT+FMCLOSE\r\n","OK"}
+		{"AT+FMVOLUME=6\r\n","OK"},//6 ;громкость от 0 до 6           | 6 + eol
+		{"AT+FMSCAN\r\n","OK"},// list of founded freq
+		{"AT+FMFREQ=1025\r\n","OK"}//,//1025 ; установить чатоту 102.5 Мгц | 1025 + eol
+		//{"AT+FMCLOSE\r\n","OK"}
 };
 //const int8_t cmd_anyMax = 8;
 const ats_t cmd_any[cmd_anyMax] = {
@@ -1070,7 +1078,12 @@ void serialLOG()
 			}
 		} else if (strstr(RxBuf, _flags)) {
 			if (!prn_flags) prn_flags = true;
+		} else if (strstr(RxBuf, _sntp)) {
+			if (!sntp_flag) sntp_flag = 1;
+		} else 	if (strstr(RxBuf, _radio)) {
+			if (!radio_flag) radio_flag = 1;
 		}
+
 		rx_uk = 0; memset(RxBuf, 0, sizeof(RxBuf));
 	} else rx_uk++;
 
@@ -1239,6 +1252,7 @@ void StartDefaultTask(void *argument)
 
     //---------------------------------------------------
 
+
 	char *uks = NULL;
 	char buf[MAX_GSM_BUF] = {0};
 	char buf2[MAX_GSM_BUF] = {0};
@@ -1259,16 +1273,37 @@ void StartDefaultTask(void *argument)
 	uint32_t tmr_ack = 0;
 	uint8_t atTotal = 0;
 //	int8_t result = -1;
+	float temp = 0.0;
+	bool dsOK = false;
+	bool go = false;
 
 
-	uint32_t cur_sec = get_tmr10(0);
+	uint32_t cur_sec = get_tmr10(1);
 
 	while (!restart_flag) {
+
 #ifdef SET_OLED_I2C
 		if (check_tmr10(cur_sec)) {
-			cur_sec = get_tmr10(_1s - _100ms);
+			cur_sec = get_tmr10(_1s);
 			sec_to_str_time(cur_sec, scr);
 			i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, 1, true);
+			if (dsOK != sensPresent) {
+				dsOK = sensPresent;
+				strcpy(scr, "DS18B20 present");
+				i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, 7, false);
+			} else {
+				if (temp != fTemp) {
+					temp = fTemp;
+#ifdef SET_FLOAT_PART
+					s_float_t flo = {0, 0};
+					floatPart(temp, &flo);
+					sprintf(scr, "temp:%lu.%lu%c", flo.cel, flo.dro / 10000, 31);
+#else
+					sprintf(scr, "temp:%5.2f", temp);
+#endif
+					i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, 7, false);
+				}
+			}
 		}
 #endif
 		//
@@ -1306,6 +1341,7 @@ void StartDefaultTask(void *argument)
 							next_cmd = true;
 							tmr_next = get_tmr10(_150ms);
 							bool repeat = false;
+
 							switch (cur_cmd) {
 								case iCREG:
 									if (grp_cmd == seqInit) {
@@ -1317,6 +1353,11 @@ void StartDefaultTask(void *argument)
 										if (gsmRSSI <= dBmRSSI[0]) repeat = true;
 									}
 								break;
+								/*case fSCAN:
+									if (grp_cmd == seqRadio) {
+
+									}
+								break;*/
 							}
 							if (repeat) {
 								next_cmd = false;
@@ -1344,6 +1385,28 @@ void StartDefaultTask(void *argument)
 			}
 		}
 		//
+		if (!at_auto) {
+			go = false;
+			if (sntp_flag) {
+				sntp_flag = 0;
+				sntpInit = 0;
+				grp_cmd = seqTime;
+				atTotal = cmd_timeMax;
+				cmd_adr = &cmd_time[0].cmd[0];
+				go = true;
+			} else if (radio_flag) {
+				radio_flag = 0;
+				grp_cmd = seqRadio;
+				atTotal = cmd_radioMax;
+				cmd_adr = &cmd_radio[0].cmd[0];
+				go = true;
+			}
+			if (go) {
+				tmr_cmd = tmr_ack = 0;
+				at_auto = next_cmd = true;
+				tmr_next = get_tmr10(_1s);
+			}
+		}
 		//
 		if (tmr_cmd) {//start send at_commands in mode auto
 			if (check_tmr(tmr_cmd)) {
@@ -1360,7 +1423,7 @@ void StartDefaultTask(void *argument)
 					tmr_cmd = tmr_ack = 0;
 					at_auto = true;
 					next_cmd = true;
-					tmr_next = get_tmr10(_100ms);
+					tmr_next = get_tmr10(_1s);
 				}
 			}
 		}
@@ -1376,6 +1439,7 @@ void StartDefaultTask(void *argument)
 						switch (grp_cmd) {
 							case seqInit:
 							case seqTime:
+							case seqRadio:
 								if (cur_cmd < atTotal) {
 									int lens = CMD_LEN;
 									uk_cmd = cmd_adr + (cur_cmd * sizeof(ats_t));//cmd
@@ -1388,6 +1452,27 @@ void StartDefaultTask(void *argument)
 											lens = sprintf(cmdBuf, "%s\"%s\",%u%s", uk_cmd, SNTP, (TZONE << 2), eol);
 											uk_cmd = &cmdBuf[0];
 										} else if (cur_cmd == tCCLK) gsmFlags.okDT = 0;
+									} else if (grp_cmd == seqRadio) {
+										if (cur_cmd == fOPEN) {
+											gsmFlags.ropen = 1;
+										} else if (cur_cmd == fCLOSE) {
+											gsmFlags.ropen = 0;
+										} else if (cur_cmd == fFREQ) {//{"AT+FMFREQ=","OK"}//,//1025 ; установить чатоту 102.5 Мгц | 1025 + eol
+											int8_t ijk = -1;
+											uint16_t fr = 963;//1025;
+											while (++ijk < MAX_FREQ_LIST) {
+												if (freqList[ijk]) {
+													fr = freqList[ijk];
+													break;
+												}
+											}
+											lens = sprintf(cmdBuf, "%s%u%s", uk_cmd, fr, eol);
+											uk_cmd = &cmdBuf[0];
+										} else if (cur_cmd == fSCAN) {
+											gsmFlags.rlist = 1;
+											indList = -1;
+											memset((uint8_t *)&freqList, 0, MAX_FREQ_LIST * sizeof(uint16_t));
+										}
 									}
 									//
 									if (cmds) free(cmds);
@@ -1515,7 +1600,7 @@ void StartDefaultTask(void *argument)
 			devError = 0;
 		}
 		//
-		osDelay(100);
+		osDelay(10);
 		//
 	}
 	//
@@ -1593,7 +1678,7 @@ void StartTemp(void *argument)
   /* Infinite loop */
 
 uint8_t	Ds18b20TryToFind = 5;
-char stx[64] = {0};
+//char scr[64] = {0};
 
 	do
 	{
@@ -1616,9 +1701,11 @@ char stx[64] = {0};
 
 	} while (Ds18b20TryToFind > 0);
 
-	if (TempSensorCount > 0) strcpy(stx, "DS18B20 present");
-						else strcpy(stx, "DS18B20 not find");
-	i2c_ssd1306_text_xy(mkLineCenter(stx, FONT_WIDTH), 1, 7, false);
+
+	if (TempSensorCount > 0) sensPresent = true;
+						//strcpy(scr, "DS18B20 present");
+						//else strcpy(scr, "DS18B20 not find");
+	//i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, 7, false);
 
 /**/
 	while (!restart_flag && Ds18b20TryToFind) {
@@ -1650,18 +1737,21 @@ char stx[64] = {0};
 			} else {
 				for (uint8_t i = 0; i < TempSensorCount; i++) ds18b20[i].DataIsValid = false;
 			}
-			Ds18b20StartConvert = 0;
-			osDelay(2500);//_DS18B20_UPDATE_INTERVAL_MS);
 			//
+			fTemp = ds18b20[0].Temperature;
+			//
+			Ds18b20StartConvert = 0;
+			osDelay(2000);//_DS18B20_UPDATE_INTERVAL_MS);
+			/*
 #ifdef SET_FLOAT_PART
 			s_float_t flo = {0,0};
-			floatPart(ds18b20[0].Temperature, &flo);
-			sprintf(stx, "temp:%lu.%lu%c", flo.cel, flo.dro / 10000, 31);
+			floatPart(fTemp, &flo);
+			sprintf(scr, "temp:%lu.%lu%c", flo.cel, flo.dro / 10000, 31);
 #else
-			sprintf(stx, "temp:%5.2f", ds18b20[0].Temperature);
+			sprintf(scr, "temp:%5.2f", fTemp);
 #endif
-			i2c_ssd1306_text_xy(mkLineCenter(stx, FONT_WIDTH), 1, 7, false);
-			//
+			i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, 7, false);
+			*/
 		}
 
 	}

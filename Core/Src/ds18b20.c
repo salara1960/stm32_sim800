@@ -25,6 +25,8 @@ uint16_t	Ds18b20Timeout = 0;
 //	osThreadId 	Ds18b20Handle;
 //	void Task_Ds18b20(void const * argument);
 
+float fTemp = 0.0;
+bool sensPresent = false;
 
 //******************************************************************************************
 

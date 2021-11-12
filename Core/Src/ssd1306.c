@@ -15,7 +15,7 @@ extern uint8_t i2cRdy;
 
 #ifdef USED_FREERTOS
 	extern osSemaphoreId_t semHandle;
-	uint32_t waitSem = 200;//ms
+	uint32_t waitSem = 150;//ms
 #endif
 //******************************************************************************************
 

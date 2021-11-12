@@ -101,6 +101,9 @@ uint8_t 	TempSensorCount;
 uint8_t		Ds18b20StartConvert;
 uint16_t	Ds18b20Timeout;
 
+float fTemp;
+bool sensPresent;
+
 //#if (_DS18B20_USE_FREERTOS==1)
 //	void	Ds18b20_Init(osPriority Priority);
 //#else
