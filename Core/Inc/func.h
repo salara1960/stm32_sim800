@@ -91,6 +91,7 @@ int sec_to_string(uint32_t sec, char *stx);
 uint8_t Report(const char *tag, bool addTime, const char *fmt, ...);
 bool set_DT();
 void prnFlags(void *g);
+void prnRList();
 bool checkDT(char *str);
 int8_t parseEvent(char *in, void *g);
 #ifdef SET_SMS

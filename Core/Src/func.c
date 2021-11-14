@@ -563,6 +563,18 @@ void prnFlags(void *g)
 		   cntpSRV, sntpDT, gsmIMEI, VCC);
 }
 //------------------------------------------------------------------------------------------
+void prnRList()
+{
+char tp[(MAX_FREQ_LIST * 5) + 1] = {0};
+int8_t i = -1;
+
+	while (++i < MAX_FREQ_LIST) {
+		if (freqList[i]) sprintf(tp+strlen(tp), " %u", freqList[i]);
+	}
+	if (strlen(tp)) Report(NULL, true, "Radio freq_list Hz:%s\r\n", tp);
+			   else Report(NULL, true, "Radio freq_list is empty\r\n");
+}
+//------------------------------------------------------------------------------------------
 bool checkDT(char *str)//21/11/01,12:49:31+02
 {
 bool ret = false;

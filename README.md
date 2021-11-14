@@ -52,6 +52,7 @@
 * Data reception on all serial ports (USART1, USART2, USART6) is performed in the callback function of the interrupt handler.
   Received data is transferred to the corresponding tasks through specific queues.
 * Support receive sms messages (with concat parts of messages).
+* Support FM radio onchip SIM800l.
 
 
 AT-commands example:

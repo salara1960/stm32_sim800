@@ -89,6 +89,7 @@ enum {
 enum {//INIT COMMANDS NUMBERS
 	iAT = 0,
 	iATE0,
+	iCMEE,
 	iCLTS,
 	iCMGF,
 	iCNMI,
@@ -358,7 +359,7 @@ UART_HandleTypeDef *portGPS;//порт GPS модуля (ATGM332D)
 TIM_HandleTypeDef *tmrDS18B20;
 
 
-#define cmd_iniMax  13
+#define cmd_iniMax  14
 #define cmd_timeMax  8
 #define cmd_netMax  11
 #define cmd_radioMax 4//5

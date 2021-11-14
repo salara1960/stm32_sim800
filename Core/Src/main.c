@@ -127,10 +127,11 @@ const osSemaphoreAttr_t sem_attributes = {
 //const char *version = "1.3.1 (07.11.2021)";// add tim10 and new Task - StartTemp() for ds18b20 sensor
 //const char *version = "1.4 (10.11.2021)";// add support ds18b20 sensor
 //const char *version = "1.5 (11.11.2021)";// support recv. sms messages (with concat parts of messages)
-const char *version = "1.5.1 (12.11.2021)";
+//const char *version = "1.5.1 (12.11.2021)";
+const char *version = "1.5.2 (14.11.2021)";
 
 
-volatile time_t epoch = 1636714630;//1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
+volatile time_t epoch = 1636907840;//1636714630;//1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
 						//1636208753;//1636148268;//1636114042;//1636106564;//1636045527;//1636022804;//1635975820;//1635956750;
 						//1635854199;//1635762840;//1635701599;//1635681180;//1635627245;//1635505880;//1635001599;//1634820289;
 uint32_t last_sec;
@@ -146,6 +147,7 @@ const char *_extDate = "epoch=";
 const char *_restart = "restart";
 const char *_sntp = "sntp";
 const char *_radio = "radio";
+const char *_rlist = "rlist";
 const char *_flags = "flags";
 volatile bool prn_flags = false;
 volatile uint32_t extDate = 0;
@@ -241,13 +243,15 @@ dattim_t DT;//date and time from sntp server
 
 int8_t indList = -1;
 uint16_t freqList[MAX_FREQ_LIST] = {0};
+volatile bool prn_rlist = false;
 
 
 //------------   AT команды GSM модуля   ------------------
-//const int8_t cmd_iniMax = 13;
+//const int8_t cmd_iniMax = 14;
 const ats_t cmd_ini[cmd_iniMax] = {//INIT
 		{"AT\r\n","OK"},
 		{"ATE0\r\n","OK"},
+		{"AT+CMEE=1\r\n","OK"},
 		{"AT+CLTS=1\r\n","OK"},
 		//{"AT+GSMBUSY=1;+CMGF=0\r\n","OK"},
 		{"AT+CMGF=0\r\n","OK"},
@@ -1080,10 +1084,11 @@ void serialLOG()
 			if (!prn_flags) prn_flags = true;
 		} else if (strstr(RxBuf, _sntp)) {
 			if (!sntp_flag) sntp_flag = 1;
-		} else 	if (strstr(RxBuf, _radio)) {
+		} else if (strstr(RxBuf, _radio)) {
 			if (!radio_flag) radio_flag = 1;
+		} else if (strstr(RxBuf, _rlist)) {
+			if (!prn_rlist) prn_rlist = 1;
 		}
-
 		rx_uk = 0; memset(RxBuf, 0, sizeof(RxBuf));
 	} else rx_uk++;
 
@@ -1588,6 +1593,9 @@ void StartDefaultTask(void *argument)
 		if (prn_flags) {
 			prn_flags = false;
 			prnFlags((void *)&gsmFlags);
+		} else if (prn_rlist) {
+			prn_rlist = false;
+			prnRList();
 		}
 		//
 		//
