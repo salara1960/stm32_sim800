@@ -8,6 +8,11 @@
 
 //******************************************************************************************
 
+#ifdef USED_FREERTOS
+	uint32_t waitRTC = 200;
+#endif
+
+//-----------------------------------------------------------------------------
 #ifdef SET_FLOAT_PART
 void floatPart(float val, s_float_t *part)
 {
@@ -347,31 +352,41 @@ void errLedOn(const char *from)
 //------------------------------------------------------------------------------------------
 //        Функция устанавливает время (в формате epochtime) в модуле RTC контроллера
 //
-void set_Date(time_t epoch)
+void set_Date(time_t ep)
 {
+bool yes = false;
 RTC_TimeTypeDef sTime;
 RTC_DateTypeDef sDate;
 struct tm ts;
 
-	gmtime_r(&epoch, &ts);
+	gmtime_r(&ep, &ts);
 
 	sDate.WeekDay = ts.tm_wday;
 	sDate.Month   = ts.tm_mon + 1;
 	sDate.Date    = ts.tm_mday;
 	sDate.Year    = ts.tm_year;
+	sTime.Hours   = ts.tm_hour + tZone;
+	sTime.Minutes = ts.tm_min;
+	sTime.Seconds = ts.tm_sec;
 
 	//__HAL_RCC_RTC_DISABLE();
-
-	if (HAL_RTC_SetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
-	else {
-		sTime.Hours   = ts.tm_hour + tZone;
-		sTime.Minutes = ts.tm_min;
-		sTime.Seconds = ts.tm_sec;
-		if (HAL_RTC_SetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
+#ifdef USED_FREERTOS
+	if (osMutexAcquire(rtcMutex, waitRTC) == osOK) {
+#endif
+		if (HAL_RTC_SetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
 		else {
-			setDate = true;
+			if (HAL_RTC_SetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
+			else {
+				yes = true;
+			}
 		}
+
+#ifdef USED_FREERTOS
+		osMutexRelease(rtcMutex);
 	}
+#endif
+
+	if (yes) setDate= true;
 
 	//__HAL_RCC_RTC_ENABLE();
 }
@@ -385,17 +400,24 @@ uint32_t get_Date()
 	struct tm ts;
 
 	RTC_TimeTypeDef sTime = {0};
-	if (HAL_RTC_GetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) return get_tmr(0);
-	ts.tm_hour = sTime.Hours;
-	ts.tm_min  = sTime.Minutes;
-	ts.tm_sec  = sTime.Seconds;
-
 	RTC_DateTypeDef sDate = {0};
-	if (HAL_RTC_GetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) return get_tmr(0);
-	ts.tm_wday = sDate.WeekDay;
-	ts.tm_mon  = sDate.Month - 1;
-	ts.tm_mday = sDate.Date;
-	ts.tm_year = sDate.Year;
+#ifdef USED_FREERTOS
+	if (osMutexAcquire(rtcMutex, waitRTC) == osOK) {
+#endif
+		if (HAL_RTC_GetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) return get_tmr(0);
+		ts.tm_hour = sTime.Hours;
+		ts.tm_min  = sTime.Minutes;
+		ts.tm_sec  = sTime.Seconds;
+
+		if (HAL_RTC_GetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) return get_tmr(0);
+		ts.tm_wday = sDate.WeekDay;
+		ts.tm_mon  = sDate.Month - 1;
+		ts.tm_mday = sDate.Date;
+		ts.tm_year = sDate.Year;
+#ifdef USED_FREERTOS
+		osMutexRelease(rtcMutex);
+	}
+#endif
 
 	return ((uint32_t)mktime(&ts));
 }
@@ -406,6 +428,7 @@ uint32_t get_Date()
 int sec_to_str_time(uint32_t sec, char *stx)
 {
 int ret = 0;
+bool yes = false;
 
 	if (!setDate) {//no valid date in RTC
 		uint32_t day = sec / (60 * 60 * 24);
@@ -418,15 +441,22 @@ int ret = 0;
 	} else {//in RTC valid date (epoch time)
 		RTC_TimeTypeDef sTime;
 		RTC_DateTypeDef sDate;
-		if (HAL_RTC_GetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;//errLedOn(__func__);
-		else {
-			if (HAL_RTC_GetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;////errLedOn(__func__);
+#ifdef USED_FREERTOS
+		if (osMutexAcquire(rtcMutex, waitRTC) == osOK) {
+#endif
+			if (HAL_RTC_GetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;//errLedOn(__func__);
 			else {
-				ret = sprintf(stx, "%02u.%02u %02u:%02u:%02u",
-								   sDate.Date, sDate.Month,
-								   sTime.Hours, sTime.Minutes, sTime.Seconds);
+				if (HAL_RTC_GetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;////errLedOn(__func__);
+				else {
+					yes = true;
+				}
 			}
+#ifdef USED_FREERTOS
+			osMutexRelease(rtcMutex);
 		}
+#endif
+		if (yes) ret = sprintf(stx, "%02u.%02u %02u:%02u:%02u",
+			   	   	   	   	   	   sDate.Date, sDate.Month, sTime.Hours, sTime.Minutes, sTime.Seconds);
 	}
 
 	return ret;
@@ -438,18 +468,26 @@ int ret = 0;
 int sec_to_string(uint32_t sec, char *stx)
 {
 int ret = 0;
+bool yes = false;
 
 	RTC_TimeTypeDef sTime;
 	RTC_DateTypeDef sDate;
-	if (HAL_RTC_GetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;//errLedOn(__func__);
-	else {
-		if (HAL_RTC_GetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;//errLedOn(__func__);
+#ifdef USED_FREERTOS
+	if (osMutexAcquire(rtcMutex, waitRTC) == osOK) {
+#endif
+		if (HAL_RTC_GetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;//errLedOn(__func__);
 		else {
-			ret = sprintf(stx, "%02u.%02u %02u:%02u:%02u ",
-							sDate.Date, sDate.Month,
-							sTime.Hours, sTime.Minutes, sTime.Seconds);
+			if (HAL_RTC_GetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;//errLedOn(__func__);
+			else {
+				yes = true;
+			}
 		}
+#ifdef USED_FREERTOS
+		osMutexRelease(rtcMutex);
 	}
+#endif
+	if (yes) ret = sprintf(stx, "%02u.%02u %02u:%02u:%02u ",
+								sDate.Date, sDate.Month, sTime.Hours, sTime.Minutes, sTime.Seconds);
 
     return ret;
 }
@@ -519,7 +557,7 @@ struct tm ts = {
 };
 
 	time_t ep = mktime(&ts);
-	if ((uint32_t)ep >= (time_t)epoch) {
+	if ((uint32_t)ep >= (uint32_t)epoch) {
 		tZone = 0;
 		set_Date(ep);
 		tZone = DT.tz;
@@ -536,15 +574,22 @@ RTC_DateTypeDef sDate;
 	sTime.Hours   = DT.hour;// + tZone;
 	sTime.Minutes = DT.min;
 	sTime.Seconds = DT.sec;
-
-	if (HAL_RTC_SetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
-	else {
-		if (HAL_RTC_SetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
+#ifdef USED_FREERTOS
+	if (osMutexAcquire(rtcMutex, waitRTC) == osOK) {
+#endif
+		if (HAL_RTC_SetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
 		else {
-			setDate = true;
-			ret = true;
+			if (HAL_RTC_SetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
+			else {
+				ret = true;
+			}
 		}
+#ifdef USED_FREERTOS
+		osMutexRelease(rtcMutex);
 	}
+#endif
+
+	if (ret) setDate = true;
 
 	return ret;
 }
@@ -555,10 +600,10 @@ void prnFlags(void *g)
 
 	Report(NULL,
 		   true,
-		   "Flags:\n\trdy:%u\n\tcFun:%u\n\tcPin:%u\n\tCallReady:%u\n\tSMSReady:%u\n\treg:%u\n\tcGat:%u\n\tcmee:%u\n"
+		   "Flags:\n\trdy:%u\n\tcFun:%u\n\tcPin:%u\n\tCallReady:%u\n\tSMSReady:%u\n\tbegin:%u\n\treg:%u\n\tcGat:%u\n\tcmee:%u\n"
 		   "\tcntp:%u\n\tokDT:%u\n\tstate:%u\n\tconnect:%u\n\terror:%u\n\tok:%u\n"
 		   "\tsntpSRV:'%s'\n\tsntpDT:'%s'\n\timei:%s\n\tVcc:%u\r\n",
-		   gf->rdy, gf->cFun, gf->cPin, gf->cReady, gf->sReady, gf->reg, gf->cGat, gf->cmee,
+		   gf->rdy, gf->cFun, gf->cPin, gf->cReady, gf->sReady, gf->begin, gf->reg, gf->cGat, gf->cmee,
 		   gf->tReady, gf->okDT, gf->state, gf->connect, gf->error, gf->ok,
 		   cntpSRV, sntpDT, gsmIMEI, VCC);
 }
@@ -650,6 +695,8 @@ int i, j, k;
 				gf->cReady = 1;
 			break;
 			case _SMSReady:
+				if (gf->sReady) gf->begin = 1;
+				else
 				gf->sReady = 1;
 			break;
 			case _Revision:
@@ -699,7 +746,7 @@ int i, j, k;
 							gf->reqDT = 1;
 							if (set_DT()) {
 								gf->okDT = 1;
-								Report(__func__, false,
+								Report(NULL, false,
 										"Set date/time %02d/%02d/%02d %02d:%02d:%02d+%02d OK !\r\n",
 										DT.day, DT.mon, DT.year, DT.hour, DT.min, DT.sec, DT.tz);
 							}

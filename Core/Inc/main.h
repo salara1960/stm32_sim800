@@ -65,8 +65,9 @@ extern "C" {
 	#include "sms.h"
 #endif
 
-
-#include "gps.h"
+#ifdef SET_GPS
+	#include "gps.h"
+#endif
 
 /* USER CODE END Includes */
 
@@ -200,6 +201,7 @@ enum {
 #define _700ms (_10ms * 70)
 #define _800ms (_10ms * 80)
 #define _900ms (_10ms * 90)
+#define _950ms (_10ms * 95)
 #define _1s (_100ms * 10)
 #define _1s5 (_100ms * 15)
 #define _2s (_1s * 2)//2000
@@ -248,34 +250,36 @@ enum {
 	uint8_t spiRdy;
 #endif
 
+
 volatile time_t epoch;
 uint8_t devError;
 const char *eol;
 int8_t indList;
 uint16_t freqList[MAX_FREQ_LIST];
 
-#pragma pack(push,1)
+//#pragma pack(push,1)
 typedef struct {
-	unsigned rdy:1;
-	unsigned cFun:1;
-	unsigned cPin:1;
-	unsigned cReady:1;
-	unsigned sReady:1;
-	unsigned reg:1;
-	unsigned cGat:1;
-	unsigned cmee:2;
-	unsigned tReady:1;
-	unsigned reqDT:1;
-	unsigned okDT:1;
-	unsigned sms:1;
-	unsigned rlist:1;
-	unsigned ropen:1;
-	unsigned state:2;
-	unsigned connect:1;
-	unsigned error:1;
-	unsigned ok:1;
+	unsigned int rdy:1;
+	unsigned int cFun:1;
+	unsigned int cPin:1;
+	unsigned int cReady:1;
+	unsigned int sReady:1;
+	unsigned int begin:1;
+	unsigned int reg:1;
+	unsigned int cGat:1;
+	unsigned int cmee:2;
+	unsigned int tReady:1;
+	unsigned int reqDT:1;
+	unsigned int okDT:1;
+	unsigned int sms:1;
+	unsigned int rlist:1;
+	unsigned int ropen:1;
+	unsigned int state:2;
+	unsigned int connect:1;
+	unsigned int error:1;
+	unsigned int ok:1;
 } gsmFlags_t;
-#pragma pack(pop)
+//#pragma pack(pop)
 
 #pragma pack(push,1)
 typedef struct {
@@ -346,6 +350,7 @@ void Error_Handler(void);
 //#endif
 #ifdef USED_FREERTOS
 	osSemaphoreId_t semHandle;
+	osMutexId_t rtcMutex;
 #endif
 
 volatile bool setDate;

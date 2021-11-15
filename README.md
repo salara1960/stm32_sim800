@@ -58,8 +58,9 @@
 AT-commands example:
 
 ```
-11.11 19:07:11 Start application version '1.5 (11.11.2021)'
-11.11 19:07:11 Start main thread...
+Start application version '1.6 (15.11.2021)'
+15.11 22:06:43 Start main thread...(15456)
+15.11 23:06:43 Start sensor thread...(15456)
 RDY
 +CFUN: 1
 +CPIN: READY
@@ -68,6 +69,8 @@ SMS Ready
 AT
 OK
 ATE0
+OK
+AT+CMEE=1
 OK
 AT+CLTS=1
 OK
@@ -82,7 +85,10 @@ AT+GSN
 864369032292264
 OK
 AT+CSQ
-+CSQ: 14,0
++CSQ: 0,0
+OK
+AT+CSQ
++CSQ: 13,0
 OK
 AT+CREG?
 +CREG: 0,1
@@ -107,9 +113,10 @@ AT+CNTP="pool.ntp.org",8
 OK
 AT+CNTP
 OK
-+CNTP: 62
++CNTP: 1
 AT+CCLK?
-+CCLK: "21/11/07,14:58:06+02"
++CCLK: "21/11/15,22:09:11+02"
+Set date/time 15/11/21 22:09:11+02 OK !
 OK
 AT+SAPBR=0,1
 OK
@@ -118,6 +125,27 @@ OK
 +CUSD: 0, "003200300030002E0030003000200440002E", 72
 200.00 р.
 ```
+
+
+Console commands:
+
+```
+ongps
+15.10 22:09:30 time:200934 date:151121 lat:54.728221 lon:20.536935 sat:5 alt:83.6 spd:0.00 dir:179.80
+15.10 22:09:31 time:200935 date:151121 lat:54.728221 lon:20.536933 sat:5 alt:83.9 spd:0.00 dir:179.80
+15.10 22:09:32 time:200936 date:151121 lat:54.728221 lon:20.536932 sat:5 alt:84.0 spd:0.00 dir:179.80
+15.10 22:09:32 time:200937 date:151121 lat:54.728221 lon:20.536930 sat:5 alt:84.4 spd:0.00 dir:179.80
+15.10 22:09:33 time:200938 date:151121 lat:54.728221 lon:20.536928 sat:5 alt:84.6 spd:0.00 dir:179.80
+15.10 22:09:34 time:200939 date:151121 lat:54.728221 lon:20.536926 sat:5 alt:84.9 spd:0.00 dir:179.80
+15.10 22:09:35 time:200940 date:151121 lat:54.728221 lon:20.536924 sat:5 alt:85.1 spd:0.00 dir:179.80
+15.10 22:09:36 time:200941 date:151121 lat:54.728221 lon:20.536922 sat:5 alt:85.4 spd:0.00 dir:179.80
+15.10 22:09:37 time:200942 date:151121 lat:54.728221 lon:20.536922 sat:5 alt:86.0 spd:0.00 dir:179.80
+.
+.
+.
+offgps
+```
+
 
 
 P.S.

@@ -78,22 +78,22 @@ int8_t idx = -1;
 	if (idx == -1) return ret;
 
 	switch (idx) {
-		case ixGNGGA:
+		case ixGNGGA://$GNGGA,163522.000,5443.66276,N,02032.21629,E,1,06,3.1,-5.0,M,0.0,M,,*57
 			if (sscanf(str, "$GNGGA,%f,%f,%c,%f,%c,%d,%d,%f,%f,%c",
-					&GPS.utc_time, &GPS.nmea_latitude, &GPS.ns, &GPS.nmea_longitude,
-					&GPS.ew, &GPS.lock, &GPS.satelites, &GPS.hdop, &GPS.msl_altitude, &GPS.msl_units) >= 1) {
+					&GPS.utc_time, &GPS.nmea_latitude, &GPS.ns, &GPS.nmea_longitude, &GPS.ew,
+					&GPS.lock, &GPS.satelites, &GPS.hdop, &GPS.msl_altitude, &GPS.msl_units) >= 9) {
     					//GPS.dec_latitude  = gpsToDec(GPS.nmea_latitude,  GPS.ns);
     					//GPS.dec_longitude = gpsToDec(GPS.nmea_longitude, GPS.ew);
     					ret = true;
 			}
 		break;
-		case ixGNRMC:
-			if (sscanf(str, "$GNRMC,%f,%f,%c,%f,%c,%f,%f,%f,%d",
-					&GPS.utc_time, &GPS.nmea_latitude, &GPS.ns, &GPS.nmea_longitude,
-					&GPS.ew, &GPS.speed_k, &GPS.course_d, &GPS.unknown, &GPS.date) >= 1) {
-						GPS.dec_latitude  = gpsToDec(GPS.nmea_latitude,  GPS.ns);
-						GPS.dec_longitude = gpsToDec(GPS.nmea_longitude, GPS.ew);
-						ret = true;
+		case ixGNRMC://$GNRMC,163525.000,A,5443.66274,N,02032.21655,E,0.00,168.22,151121,,,A,V*05
+			if (sscanf(str, "$GNRMC,%f,%c,%f,%c,%f,%c,%f,%f,%d",
+					&GPS.utc_time, &GPS.rmc_status, &GPS.nmea_latitude, &GPS.ns, &GPS.nmea_longitude, &GPS.ew,
+					&GPS.speed_k, &GPS.course_d, &GPS.date) >= 9) {
+					GPS.dec_latitude  = gpsToDec(GPS.nmea_latitude,  GPS.ns);
+					GPS.dec_longitude = gpsToDec(GPS.nmea_longitude, GPS.ew);
+					ret = true;
 			}
 		break;
 		/*case ixGNGLL:
@@ -116,16 +116,15 @@ char *gpsPrint(char *str)
 #ifdef SET_FLOAT_PART
 		s_float_t flo = {0,0};
 		floatPart(GPS.utc_time, &flo);      sprintf(str, "time:%06lu", flo.cel);
-		//floatPart(GPS.date, &flo);
 		sprintf(str+strlen(str), " date:%06d", GPS.date);
 		floatPart(GPS.dec_latitude, &flo);  sprintf(str+strlen(str), " lat:%lu.%lu", flo.cel, flo.dro);
-		floatPart(GPS.dec_longitude, &flo); sprintf(str+strlen(str), " long:%lu.%lu sat:%d", flo.cel, flo.dro, GPS.satelites);
+		floatPart(GPS.dec_longitude, &flo); sprintf(str+strlen(str), " lon:%lu.%lu sat:%d", flo.cel, flo.dro, GPS.satelites);
 		floatPart(GPS.msl_altitude, &flo);  sprintf(str+strlen(str), " alt:%lu.%01lu", flo.cel, flo.dro/100000);
-		floatPart(GPS.speed_k, &flo);       sprintf(str+strlen(str), " spd:%lu.%02lu", flo.cel, flo.dro);
-		floatPart(GPS.course_d, &flo);      sprintf(str+strlen(str), " dir:%lu.%02lu", flo.cel, flo.dro);
+		floatPart(GPS.speed_k, &flo);       sprintf(str+strlen(str), " spd:%lu.%02lu", flo.cel, flo.dro/10000);
+		floatPart(GPS.course_d, &flo);      sprintf(str+strlen(str), " dir:%lu.%02lu", flo.cel, flo.dro/10000);
 #else
 
-		sprintf(str, "time:%f date:%d lat:%.4f long:%.4f sat:%d alt:%.4f speed:%.4f dir:%.4f",
+		sprintf(str, "time:%f date:%d lat:%.4f long:%.4f sat:%d alt:%.2f speed:%.2f dir:%.2f",
 				GPS.utc_time, GPS.date, GPS.dec_latitude, GPS.dec_longitude,
 				GPS.satelites, GPS.msl_altitude, GPS.speed_km, GPS.course_m);
 #endif

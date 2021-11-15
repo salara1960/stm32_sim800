@@ -71,12 +71,12 @@ const osThreadAttr_t mainTask_attributes = {
   .stack_size = 896 * 4
 };
 /* Definitions for gpsTask */
-osThreadId_t gpsTaskHandle;
-const osThreadAttr_t gpsTask_attributes = {
-  .name = "gpsTask",
-  .priority = (osPriority_t) osPriorityNormal1,
-  .stack_size = 384 * 4
-};
+//osThreadId_t gpsTaskHandle;
+//const osThreadAttr_t gpsTask_attributes = {
+//  .name = "gpsTask",
+//  .priority = (osPriority_t) osPriorityNormal1,
+//  .stack_size = 384 * 4
+//};
 /* Definitions for tempTask */
 osThreadId_t tempTaskHandle;
 const osThreadAttr_t tempTask_attributes = {
@@ -89,6 +89,11 @@ osSemaphoreId_t semHandle;
 const osSemaphoreAttr_t sem_attributes = {
   .name = "sem"
 };
+osMutexId_t rtcMutex;
+const osMutexAttr_t rtcMutex_attributes = {
+  .name = "rtcMutex"
+};
+
 /* USER CODE BEGIN PV */
 //osSemaphoreId_t mainBinSemHandle;
 //const osSemaphoreAttr_t mainBinSem_attributes = {
@@ -100,6 +105,11 @@ const osSemaphoreAttr_t sem_attributes = {
 //  .priority = (osPriority_t) osPriorityNormal1,
 //  .stack_size = 384 * 4
 //};
+//osMutexId_t rtcMutex;
+//const osMutexAttr_t rtcMutex_attributes = {
+//  .name = "rtcMutex"
+//};
+
 
 #ifdef SET_SMS
 	#ifdef SET_SMS_QUEUE
@@ -128,10 +138,12 @@ const osSemaphoreAttr_t sem_attributes = {
 //const char *version = "1.4 (10.11.2021)";// add support ds18b20 sensor
 //const char *version = "1.5 (11.11.2021)";// support recv. sms messages (with concat parts of messages)
 //const char *version = "1.5.1 (12.11.2021)";
-const char *version = "1.5.2 (14.11.2021)";
+//const char *version = "1.5.2 (14.11.2021)";
+//const char *version = "1.5.3 (15.11.2021)";//minor changes for date/time set via sntp server
+const char *version = "1.6 (15.11.2021)";//major changes for get gps data
 
 
-volatile time_t epoch = 1636907840;//1636714630;//1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
+volatile time_t epoch = 1637006802;//1636985372;//1636907840;//1636714630;//1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
 						//1636208753;//1636148268;//1636114042;//1636106564;//1636045527;//1636022804;//1635975820;//1635956750;
 						//1635854199;//1635762840;//1635701599;//1635681180;//1635627245;//1635505880;//1635001599;//1634820289;
 uint32_t last_sec;
@@ -162,6 +174,7 @@ uint8_t gsmRdy = 1;
 uint8_t adone = 0;
 
 #ifdef SET_GPS
+	UART_HandleTypeDef *portGPS = &huart6;//порт GPS модуля (ATGM332D)
 	static char gpsBuf[MAX_GPS_BUF] = {0};// Буфер для приёма данных из порта portGPS
 	uint8_t gps_uk;
 	uint8_t gpsByte = 0;
@@ -169,7 +182,11 @@ uint8_t adone = 0;
 	uint8_t gdone = 0;
 	s_recq_t gpsFrom;
 	bool gpsFromFlag = false;
-	gsmFlags_t gpsFlags;
+	gsmFlags_t gpsFlags = {0};
+	bool prnGpsFlag = false;
+	//const char *_gps = "gps";
+	const char *_ongps = "ongps";
+	const char *_offgps = "offgps";
 #endif
 
 uint8_t *adrByte = NULL;
@@ -185,9 +202,6 @@ UART_HandleTypeDef *portGSM = &huart2;//порт GSM модуля (sim800l)
 I2C_HandleTypeDef *portOLED = &hi2c1;//порт OLED дисплея (ssd1306)
 SPI_HandleTypeDef *portFLASH = &hspi1;//порт flash-памяти (w25q64)
 RTC_HandleTypeDef *portRTC = &hrtc;
-#ifdef SET_GPS
-	UART_HandleTypeDef *portGPS = &huart6;//порт GPS модуля (ATGM332D)
-#endif
 #ifdef SET_TEMP_SENSOR
 	TIM_HandleTypeDef *tmrDS18B20 = &htim10;
 #endif
@@ -465,11 +479,11 @@ int main(void)
       //"start" rx_gps_interrupt
       HAL_UART_Receive_IT(portGPS, (uint8_t *)&gpsByte, 1);
 #endif
-
+/*
       tZone = 2;
       set_Date((time_t)(++epoch));
       //last_sec = (uint32_t)epoch - 2;
-
+*/
 	  HAL_Delay(250);
 
       Report(NULL, true, "Start application version '%s'\r\n", version);
@@ -517,6 +531,7 @@ int main(void)
   		smsSem = osSemaphoreNew(1, 1, &smsSem_attributes);
 	#endif
 #endif
+  		rtcMutex = osMutexNew(&rtcMutex_attributes);
   /* USER CODE END RTOS_SEMAPHORES */
 
   /* USER CODE BEGIN RTOS_TIMERS */
@@ -528,7 +543,7 @@ int main(void)
 
   gsmToFlag   = initRECQ(&gsmTo);
   gsmFromFlag = initRECQ(&gsmFrom);
-  //gpsFromFlag = initRECQ(&gpsFrom);
+  gpsFromFlag = initRECQ(&gpsFrom);
 
   /* add queues, ... */
   //"start" rx_gsm_interrupt
@@ -548,7 +563,7 @@ int main(void)
   mainTaskHandle = osThreadNew(StartDefaultTask, NULL, &mainTask_attributes);
 
   /* creation of gpsTask */
-  gpsTaskHandle = osThreadNew(StartGps, NULL, &gpsTask_attributes);
+  //gpsTaskHandle = osThreadNew(StartGps, NULL, &gpsTask_attributes);
 
   /* creation of tempTask */
   tempTaskHandle = osThreadNew(StartTemp, NULL, &tempTask_attributes);
@@ -1089,6 +1104,13 @@ void serialLOG()
 		} else if (strstr(RxBuf, _rlist)) {
 			if (!prn_rlist) prn_rlist = 1;
 		}
+#ifdef SET_GPS
+		else if (strstr(RxBuf, _ongps)) {
+			if (!prnGpsFlag) prnGpsFlag = true;
+		} else if (strstr(RxBuf, _offgps)) {
+			if (prnGpsFlag) prnGpsFlag = false;
+		}
+#endif
 		rx_uk = 0; memset(RxBuf, 0, sizeof(RxBuf));
 	} else rx_uk++;
 
@@ -1137,7 +1159,7 @@ void serialGPS()
 	}
 	if (gdone) {
 		if (gpsByte == 0x0a) {// '\n'
-			if (gpsFromFlag && gsmInit && sntpInit) {
+			if (gpsFromFlag) {// && gsmInit && sntpInit)
 				if (gpsValidate(gpsBuf)) {
 					cnt_gps++;
 					int len = strlen(gpsBuf);
@@ -1253,7 +1275,10 @@ void StartDefaultTask(void *argument)
 
 	gsmReset();
 
-	Report(NULL, true, "Start main thread...\r\n");//, xPortGetFreeHeapSize());
+	tZone = 2;
+	set_Date((time_t)(++epoch));
+
+	Report(NULL, true, "Start main thread...(%lu)\r\n", xPortGetFreeHeapSize());
 
     //---------------------------------------------------
 
@@ -1263,7 +1288,7 @@ void StartDefaultTask(void *argument)
 	char buf2[MAX_GSM_BUF] = {0};
 	char scr[MAX_GSM_BUF] = {0};
 	char cmdBuf[128] = {0};
-	int8_t slin = 3, elin = 6, clin = 3, at_line = 2, err_line = 8;
+	int8_t slin = 3, elin = 5, clin = 3, at_line = 2, err_line = 8, temp_line = 6, cor_line = 7;
 
 
 	int8_t cur_cmd = -1;
@@ -1281,21 +1306,22 @@ void StartDefaultTask(void *argument)
 	float temp = 0.0;
 	bool dsOK = false;
 	bool go = false;
+	uint8_t sch = 0;
 
-
+	uint32_t gps_tmr = get_tmr10(1);
 	uint32_t cur_sec = get_tmr10(1);
 
 	while (!restart_flag) {
 
 #ifdef SET_OLED_I2C
 		if (check_tmr10(cur_sec)) {
-			cur_sec = get_tmr10(_1s);
+			cur_sec = get_tmr10(_900ms);
 			sec_to_str_time(cur_sec, scr);
 			i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, 1, true);
 			if (dsOK != sensPresent) {
 				dsOK = sensPresent;
 				strcpy(scr, "DS18B20 present");
-				i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, 7, false);
+				i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, temp_line, false);
 			} else {
 				if (temp != fTemp) {
 					temp = fTemp;
@@ -1306,9 +1332,12 @@ void StartDefaultTask(void *argument)
 #else
 					sprintf(scr, "temp:%5.2f", temp);
 #endif
-					i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, 7, false);
+					i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, temp_line, false);
 				}
 			}
+			//
+
+			//
 		}
 #endif
 		//
@@ -1339,6 +1368,33 @@ void StartDefaultTask(void *argument)
 				if ((uks = strstr(buf2, "\r\n")) != NULL) *uks = '\0';
 				//result =
 						parseEvent(buf2, (void *)&gsmFlags);
+				//
+				if (gsmFlags.begin) {
+					gsmFlags.begin = 0;
+					//unsigned int *dword = (unsigned int *)&gsmFlags;
+					//*dword = 0;
+					gsmFlags.sReady = 1;
+					cur_cmd = grp_cmd = -1;
+					cmd_err = CMD_REPEAT;
+					uk_cmd = uk_ack = NULL;
+					next_cmd = true;
+					at_auto = false;
+					tmr_next = tmr_ack = 0;
+					atTotal = 0;
+					//sch = 0;
+					//dsOK = false;
+					go = false;
+					gsmInit = sntpInit = false;
+
+					Report(NULL, true, "Restart main loop !\r\n");
+					i2c_ssd1306_clear_lines(at_line, elin);
+
+					tmr_cmd = get_tmr(1);
+					gps_tmr = get_tmr10(1);
+					cur_sec = get_tmr10(1);
+
+					continue;
+				}
 				//
 				if (at_auto) {
 					if (uk_ack) {
@@ -1508,19 +1564,19 @@ void StartDefaultTask(void *argument)
 											grp_cmd = seqTime;
 											tmr_cmd = get_tmr(1);
 										}
-#ifdef SET_OLED_I2C
+/*#ifdef SET_OLED_I2C
 										strcpy(scr, "Init GSM done");
 										i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, err_line, true);
-#endif
+#endif*/
 									} else if (grp_cmd == seqTime) {
 										sntpInit = true;
-#ifdef SET_OLED_I2C
+/*#ifdef SET_OLED_I2C
 										if (gsmFlags.okDT)
 											strcpy(scr, "Time set done");
 										else
 											strcpy(scr, "Time get done");
 										i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, err_line, true);
-#endif
+#endif*/
 									}
 								}
 							break;
@@ -1608,6 +1664,35 @@ void StartDefaultTask(void *argument)
 			devError = 0;
 		}
 		//
+#ifdef SET_GPS
+		if (gpsFromFlag) {//queue for messages from GPS module is ready
+			if (check_tmr10(gps_tmr)) {
+				gps_tmr = get_tmr10(_50ms);
+				if (getRECQ(buf, &gpsFrom) >= 0) {//get message from queue if present
+	#ifdef SET_GPS_DEBUG
+					Report(NULL, true, "%s%s", buf, eol);
+	#endif
+					if (gpsParse(buf)) {
+						sch++;
+						if (sch == MAX_NMEA_MSG) {
+							sch = 0;
+							if (prnGpsFlag) {
+								//prnGpsFlag = false;
+								Report(NULL, true, "%s%s", gpsPrint(buf), eol);
+							}
+							s_float_t flo = {0,0};
+							floatPart(GPS.dec_latitude, &flo); sprintf(scr,            "%02lu.%04lu ",  flo.cel, flo.dro / 100);
+							floatPart(GPS.dec_longitude,&flo); sprintf(scr+strlen(scr),"%02lu.%04lu\n", flo.cel, flo.dro / 100);
+							floatPart(GPS.msl_altitude,  &flo); sprintf(scr+strlen(scr)," sat:%d alt:%lu",GPS.satelites, flo.cel);
+							i2c_ssd1306_text_xy(scr, 1, cor_line, false);
+							gps_tmr = get_tmr10(_900ms);
+						}
+					}
+				}
+			}
+		}
+#endif
+		//
 		osDelay(10);
 		//
 	}
@@ -1632,17 +1717,20 @@ void StartGps(void *argument)
 {
   /* USER CODE BEGIN StartGps */
   /* Infinite loop */
+/*
 #ifdef SET_GPS
 
-	gpsFromFlag = initRECQ(&gpsFrom);
+	//gpsFromFlag = initRECQ(&gpsFrom);
 
     ////"start" rx_gps_interrupt
     //HAL_UART_Receive_IT(portGPS, (uint8_t *)&gpsByte, 1);
 
+	Report(NULL, true, "Start GPS thread...(%lu)\r\n", xPortGetFreeHeapSize());
+
     char buf[MAX_UART_BUF] = {0};
 
     uint8_t sch = 0;
-    uint32_t tmr = get_tmr10(0);
+    uint32_t tmr = get_tmr10(1);
 
     while (!restart_flag) {
 
@@ -1653,7 +1741,7 @@ void StartGps(void *argument)
     					sch++;
     					if (sch == MAX_NMEA_MSG -1) {
     						sch = 0;
-    						//Report(__func__, true, "%s%s", gpsPrint(buf), eol);
+    						Report(__func__, true, "%s%s", gpsPrint(buf), eol);
     					}
     				}
     			}
@@ -1668,7 +1756,7 @@ void StartGps(void *argument)
 #endif
 
     osThreadExit();
-
+*/
   /* USER CODE END StartGps */
 }
 
@@ -1684,6 +1772,8 @@ void StartTemp(void *argument)
   /* USER CODE BEGIN StartTemp */
 #ifdef SET_TEMP_SENSOR
   /* Infinite loop */
+
+	Report(NULL, true, "Start sensor thread...(%lu)\r\n", xPortGetFreeHeapSize());
 
 uint8_t	Ds18b20TryToFind = 5;
 //char scr[64] = {0};

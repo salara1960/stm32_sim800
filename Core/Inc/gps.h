@@ -36,7 +36,6 @@ typedef struct {
     char rmc_status;
     float speed_k;
     float course_d;
-    float unknown;
     int date;
     // GLL
 //    char gll_status;
@@ -51,7 +50,7 @@ typedef struct {
 } gps_t;
 #pragma pack(pop)
 
-extern gps_t GPS;
+gps_t GPS;
 
 
 int gpsValidate(char *str);

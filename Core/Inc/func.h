@@ -44,6 +44,10 @@ typedef struct s_recq_t {
 
 //------------------------------------------------------------------------
 
+#ifdef USED_FREERTOS
+	uint32_t waitRTC;
+#endif
+
 extern volatile bool setDate;
 extern volatile uint32_t extDate;
 extern uint8_t uartRdy;
