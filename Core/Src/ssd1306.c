@@ -253,7 +253,7 @@ uint8_t zero[BUF_LINE_SIZE] = {0};
 }
 */
 //-----------------------------------------------------------------------------------------
-void i2c_ssd1306_pattern()
+void i2c_ssd1306_pattern(bool with)
 {
 uint8_t i, dat[] = {OLED_CONTROL_BYTE_CMD_SINGLE, 0};
 uint8_t buf[129] = {0};
@@ -265,7 +265,9 @@ uint8_t dma = oled_withDMA;
 	buf[0] = OLED_CONTROL_BYTE_DATA_STREAM;
 	for (i = 1; i < 129; i++) buf[i] = 0xFF >> (i % 8);
 #ifdef USED_FREERTOS
-	if (osSemaphoreAcquire(semHandle, waitSem) == osOK) {
+	if (with) {
+		if (osSemaphoreAcquire(semHandle, waitSem) == osOK) {
+	}
 #endif
 		for (i = 0; i < 8; i++) {
 			dat[1] = 0xB0 | i;
@@ -279,8 +281,10 @@ uint8_t dma = oled_withDMA;
 			}
 		}
 #ifdef USED_FREERTOS
+		if (with) {
 		osSemaphoreRelease(semHandle);
 	}
+		}
 #endif
 	i2cRdy = 1;
 

@@ -82,7 +82,7 @@
 	void i2c_ssd1306_init();
 	void i2c_ssd1306_invert();
 	void i2c_ssd1306_clear();
-	void i2c_ssd1306_pattern();
+	void i2c_ssd1306_pattern(bool with);
 	void i2c_ssd1306_contrast(uint8_t value);
 	void i2c_ssd1306_clear_line(uint8_t cy);
 	void i2c_ssd1306_clear_lines(uint8_t sline, uint8_t eline);

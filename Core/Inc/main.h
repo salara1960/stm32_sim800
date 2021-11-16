@@ -254,7 +254,7 @@ enum {
 volatile time_t epoch;
 uint8_t devError;
 const char *eol;
-int8_t indList;
+uint8_t indList;
 uint16_t freqList[MAX_FREQ_LIST];
 
 //#pragma pack(push,1)
