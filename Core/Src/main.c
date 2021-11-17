@@ -128,7 +128,7 @@ const osMutexAttr_t rtcMutex_attributes = {
 const char *version = "1.8 (17.11.2021)";
 
 
-volatile time_t epoch = 1637156150;//1637080774;//1637006802;
+volatile time_t epoch = 1637171390;//1637156150;//1637080774;//1637006802;
 						//1636985372;//1636907840;//1636714630;//1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
 						//1636208753;//1636148268;//1636114042;//1636106564;//1636045527;//1636022804;//1635975820;//1635956750;
 						//1635854199;//1635762840;//1635701599;//1635681180;//1635627245;//1635505880;//1635001599;//1634820289;
@@ -301,7 +301,7 @@ const ats_t cmd_radio[cmd_radioMax] = {
 		{"AT+FMOPEN=0\r\n","OK"},//   ; вкыл
 		{"AT+FMVOLUME=6\r\n","OK"},//6 ;громкость от 0 до 6           | 6 + eol
 		{"AT+FMSCAN\r\n","OK"},// list of founded freq
-		{"AT+FMFREQ=1025\r\n","OK"}//,//1025 ; установить чатоту 102.5 Мгц | 1025 + eol
+		{"AT+FMFREQ=","OK"}//,//1025 ; установить чатоту 102.5 Мгц | 1025 + eol
 		//{"AT+FMCLOSE\r\n","OK"}
 };
 //const int8_t cmd_anyMax = 8;
@@ -1063,11 +1063,15 @@ void serialLOG()
 					if (uk) *(uk + 1) = '\0';
 				}
 				//strncpy(tmp_RxBuf, RxBuf, sizeof(tmp_RxBuf) - 1);
-				strcat(RxBuf, "\r\n");
+				strcat(RxBuf, eol);
 				char *to = (char *)calloc(1, strlen(RxBuf) + 1);
 				if (to) {
 					strcpy(to, RxBuf);
-					if (putRECQ(to, &gsmTo) < 0) devError |= devQue;
+					toUppers(to);
+					if (putRECQ(to, &gsmTo) < 0) {
+						devError |= devQue;
+						free(to);
+					}
 				} else devError |= devMem;
 			}
 		} else if (strstr(RxBuf, _flags)) {
@@ -1396,9 +1400,9 @@ void StartDefaultTask(void *argument)
 										if (gsmRSSI <= dBmRSSI[0]) repeat = true;
 									}
 								break;
-								/*case fSCAN:
+								/*case fOPEN:
 									if (grp_cmd == seqRadio) {
-
+										if (gsmFlags.error) repeat = true;
 									}
 								break;*/
 							}
@@ -1408,6 +1412,7 @@ void StartDefaultTask(void *argument)
 							}
 						} else {
 							if (gsmFlags.error) {//example : +CME ERROR: 100
+								next_cmd = false;
 								tmr_next = 0;
 								tmr_ack = get_tmr10(0);
 							} else {
@@ -1417,8 +1422,8 @@ void StartDefaultTask(void *argument)
 											if (strlen(buf2) >= 15) memcpy(gsmIMEI, buf2, 15);
 										}
 									break;
-									case seqTime:
-									break;
+									//case seqTime:
+									//break;
 								}
 							}
 						}
@@ -1488,36 +1493,36 @@ void StartDefaultTask(void *argument)
 									int lens = CMD_LEN;
 									uk_cmd = cmd_adr + (cur_cmd * sizeof(ats_t));//cmd
 									uk_ack = uk_cmd + CMD_LEN;//cmd_adr[cur_cmd]->ack;
-									if (grp_cmd == seqTime) {
-										if (cur_cmd == tSAPBR31) {//{"AT+SAPBR=3,1,\"APN\",","OK"},//\"internet\"\r\n" | "APN" + eol
-											lens = sprintf(cmdBuf, "%s\"%s\"%s", uk_cmd, APN, eol);
-											uk_cmd = &cmdBuf[0];
-										} else if (cur_cmd == tCNTP_SRV) {//{"AT+CNTP=","OK"},//\"pool.ntp.org\",8\r\n" | "SNTP",TZONE<<2 + eol
-											lens = sprintf(cmdBuf, "%s\"%s\",%u%s", uk_cmd, SNTP, (TZONE << 2), eol);
-											uk_cmd = &cmdBuf[0];
-										} else if (cur_cmd == tCCLK) gsmFlags.okDT = 0;
-									} else if (grp_cmd == seqRadio) {
-										if (cur_cmd == fOPEN) {
-											gsmFlags.ropen = 1;
-										} else if (cur_cmd == fCLOSE) {
-											gsmFlags.ropen = 0;
-										} else if (cur_cmd == fFREQ) {//{"AT+FMFREQ=","OK"}//,//1025 ; установить чатоту 102.5 Мгц | 1025 + eol
-											uint16_t fr = 1025;
-											indList = 0;
-											while (indList < MAX_FREQ_LIST) {
-												if (freqList[indList]) {
-													fr = freqList[indList];
-													break;
+									switch (grp_cmd) {
+										case seqTime:
+											if (cur_cmd == tSAPBR31) {//{"AT+SAPBR=3,1,\"APN\",","OK"},//\"internet\"\r\n" | "APN" + eol
+												lens = sprintf(cmdBuf, "%s\"%s\"%s", uk_cmd, APN, eol);
+												uk_cmd = &cmdBuf[0];
+											} else if (cur_cmd == tCNTP_SRV) {//{"AT+CNTP=","OK"},//\"pool.ntp.org\",8\r\n" | "SNTP",TZONE<<2 + eol
+												lens = sprintf(cmdBuf, "%s\"%s\",%u%s", uk_cmd, SNTP, (TZONE << 2), eol);
+												uk_cmd = &cmdBuf[0];
+											} else if (cur_cmd == tCCLK) gsmFlags.okDT = 0;
+										break;
+										case seqRadio:
+											if (cur_cmd == fOPEN) {
+												gsmFlags.ropen = 1;
+												indList = 0;
+											} else if (cur_cmd == fCLOSE) {
+												gsmFlags.ropen = 0;
+											} else if (cur_cmd == fFREQ) {//{"AT+FMFREQ=","OK"}//,//1025 ; установить чатоту 102.5 Мгц | 1025 + eol
+												uint16_t fr = 1025;
+												//indList = 0;
+												while (indList < MAX_FREQ_LIST) {
+													if (freqList[indList]) {
+														fr = freqList[indList];
+														break;
+													}
+													indList++;
 												}
-												indList++;
+												lens = sprintf(cmdBuf, "%s%u%s", uk_cmd, fr, eol);
+												uk_cmd = &cmdBuf[0];
 											}
-											lens = sprintf(cmdBuf, "%s%u%s", uk_cmd, fr, eol);
-											uk_cmd = &cmdBuf[0];
-										}/* else if (cur_cmd == fSCAN) {
-											gsmFlags.rlist = 1;
-											indList = 0;
-											memset((uint8_t *)&freqList, 0, MAX_FREQ_LIST * sizeof(uint16_t));
-										}*/
+										break;
 									}
 									//
 									if (cmds) free(cmds);
@@ -1563,10 +1568,10 @@ void StartDefaultTask(void *argument)
 					if (cmd_err) cmd_err--;
 					if (!cmd_err) {// stop at_commands sequence
 						cmd_err = CMD_REPEAT;
-						tmr_next = get_tmr10(_500ms);
+						tmr_next = get_tmr10(_750ms);
 					} else {
 						if (cur_cmd > 0) cur_cmd--;
-						tmr_next = get_tmr10(_2s5);
+						tmr_next = get_tmr10(_2s);
 					}
 					next_cmd = true;
 					tmr_ack = 0;

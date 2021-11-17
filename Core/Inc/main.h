@@ -42,6 +42,7 @@ extern "C" {
 #include <time.h>
 #include <math.h>
 #include <stdarg.h>
+#include <ctype.h>
 
 #include "cmsis_os.h"
 
@@ -199,6 +200,7 @@ enum {
 #define _500ms (_10ms * 50)
 #define _600ms (_10ms * 60)
 #define _700ms (_10ms * 70)
+#define _750ms (_10ms * 75)
 #define _800ms (_10ms * 80)
 #define _900ms (_10ms * 90)
 #define _950ms (_10ms * 95)
