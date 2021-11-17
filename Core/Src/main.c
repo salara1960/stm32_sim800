@@ -124,10 +124,11 @@ const osMutexAttr_t rtcMutex_attributes = {
 //const char *version = "1.5.2 (14.11.2021)";
 //const char *version = "1.5.3 (15.11.2021)";//minor changes for date/time set via sntp server
 //const char *version = "1.6 (15.11.2021)";//major changes for get gps data
-const char *version = "1.7 (16.11.2021)";//major changes : remove gps thread and move nmea parser to main thread
+//const char *version = "1.7 (16.11.2021)";//major changes : remove gps thread and move nmea parser to main thread
+const char *version = "1.8 (17.11.2021)";
 
 
-volatile time_t epoch = 1637080774;//1637006802;
+volatile time_t epoch = 1637156150;//1637080774;//1637006802;
 						//1636985372;//1636907840;//1636714630;//1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
 						//1636208753;//1636148268;//1636114042;//1636106564;//1636045527;//1636022804;//1635975820;//1635956750;
 						//1635854199;//1635762840;//1635701599;//1635681180;//1635627245;//1635505880;//1635001599;//1634820289;
@@ -1252,7 +1253,7 @@ void StartDefaultTask(void *argument)
 	tZone = 2;
 	set_Date((time_t)(++epoch));
 
-	Report(__func__, true, "Start main thread...\r\n");
+	Report(__func__, true, "Start main thread...(%lu)\r\n", xPortGetFreeHeapSize());
 
     //---------------------------------------------------
 
@@ -1318,6 +1319,13 @@ void StartDefaultTask(void *argument)
 		if (gsmToFlag) {//command to GSM module queue is ready
 			if (getRECQ(buf, &gsmTo) >= 0) {
 				if (HAL_UART_Transmit_DMA(portGSM, (uint8_t *)buf, strlen(buf)) != HAL_OK) devError |= devUART;
+				else {
+					if (strstr(buf, cmd_radio[fSCAN].cmd)) {
+						gsmFlags.rlist = 1;
+						indList = 0;
+						memset((uint8_t *)&freqList, 0, MAX_FREQ_LIST * sizeof(uint16_t));
+					}
+				}
 #ifdef SET_OLED_I2C
 				i2c_ssd1306_clear_line(at_line);
 				if (strlen(buf) > MAX_FONT_CHAR) buf[MAX_FONT_CHAR] = '\0';
@@ -1437,6 +1445,7 @@ void StartDefaultTask(void *argument)
 				go = true;
 			}
 			if (go) {
+				cmd_err = CMD_REPEAT;
 				tmr_cmd = tmr_ack = 0;
 				at_auto = next_cmd = true;
 				tmr_next = get_tmr10(_1s);
@@ -1494,19 +1503,21 @@ void StartDefaultTask(void *argument)
 											gsmFlags.ropen = 0;
 										} else if (cur_cmd == fFREQ) {//{"AT+FMFREQ=","OK"}//,//1025 ; установить чатоту 102.5 Мгц | 1025 + eol
 											uint16_t fr = 1025;
+											indList = 0;
 											while (indList < MAX_FREQ_LIST) {
 												if (freqList[indList]) {
 													fr = freqList[indList];
 													break;
 												}
+												indList++;
 											}
 											lens = sprintf(cmdBuf, "%s%u%s", uk_cmd, fr, eol);
 											uk_cmd = &cmdBuf[0];
-										} else if (cur_cmd == fSCAN) {
+										}/* else if (cur_cmd == fSCAN) {
 											gsmFlags.rlist = 1;
 											indList = 0;
 											memset((uint8_t *)&freqList, 0, MAX_FREQ_LIST * sizeof(uint16_t));
-										}
+										}*/
 									}
 									//
 									if (cmds) free(cmds);
@@ -1644,8 +1655,10 @@ void StartDefaultTask(void *argument)
 							}
 							s_float_t flo = {0,0};
 							floatPart(GPS.dec_latitude, &flo); sprintf(scr,            "%02lu.%04lu ",  flo.cel, flo.dro / 100);
-							floatPart(GPS.dec_longitude,&flo); sprintf(scr+strlen(scr),"%02lu.%04lu\n", flo.cel, flo.dro / 100);
-							floatPart(GPS.msl_altitude,  &flo); sprintf(scr+strlen(scr)," sat:%d alt:%lu",GPS.satelites, flo.cel);
+							floatPart(GPS.dec_longitude,&flo); sprintf(scr+strlen(scr),"%02lu.%04lu", flo.cel, flo.dro / 100);
+							if (!devError) {
+								floatPart(GPS.msl_altitude,  &flo); sprintf(scr+strlen(scr),"\n sat:%d alt:%lu",GPS.satelites, flo.cel);
+							}
 							i2c_ssd1306_text_xy(scr, 1, cor_line, false);
 							gps_tmr = get_tmr10(_900ms);
 						}
@@ -1681,7 +1694,7 @@ void StartTemp(void *argument)
 #ifdef SET_TEMP_SENSOR
   /* Infinite loop */
 
-	Report(__func__, true, "Start sensor thread...\r\n");
+	Report(__func__, true, "Start sensor thread...(%lu)\r\n", xPortGetFreeHeapSize());
 
 	uint8_t	Ds18b20TryToFind = 5;
 

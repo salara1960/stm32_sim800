@@ -610,14 +610,26 @@ void prnFlags(void *g)
 //------------------------------------------------------------------------------------------
 void prnRList()
 {
-char tp[(MAX_FREQ_LIST * 5) + 1] = {0};
+char tp[(MAX_FREQ_LIST * 8) + 1] = {0};
 int8_t i = -1;
+s_float_t flo = {0,0};
+float freq = 0.0;
 
 	while (++i < MAX_FREQ_LIST) {
-		if (freqList[i]) sprintf(tp+strlen(tp), " %u", freqList[i]);
+		if (freqList[i]) {
+			freq = freqList[i];
+			floatPart(freq / 10, &flo);
+			sprintf(tp+strlen(tp), "%lu.%01lu ", flo.cel, flo.dro / 100000);
+		}
 	}
-	if (strlen(tp)) Report(NULL, true, "Radio freq_list Hz:%s\r\n", tp);
-			   else Report(NULL, true, "Radio freq_list is empty\r\n");
+	int dl = strlen(tp);
+
+	if (dl) {
+		tp[dl - 1] = '\0';
+		Report(NULL, true, "Radio freq_list MHz:[%s]\r\n", tp);
+	} else {
+		Report(NULL, true, "Radio freq_list is empty\r\n");
+	}
 }
 //------------------------------------------------------------------------------------------
 bool checkDT(char *str)//21/11/01,12:49:31+02
@@ -896,10 +908,10 @@ int i, j, k;
 		} else if (gf->rlist) {
 			int dl = strlen(in);
 			if ((dl >= 3) && (dl <= 4)) {
-				indList++;
 				if (indList < MAX_FREQ_LIST) {
 					freqList[indList] = (uint16_t)atoi(in);
 				}
+				indList++;
 			}
 		}
 #endif
@@ -907,7 +919,7 @@ int i, j, k;
 
 	return ret;
 }
-//------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------
 

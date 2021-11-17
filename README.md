@@ -58,9 +58,9 @@
 AT-commands example:
 
 ```
-Start application version '1.6 (15.11.2021)'
-15.11 22:06:43 Start main thread...(15456)
-15.11 23:06:43 Start sensor thread...(15456)
+Start application version '1.8 (17.11.2021)'
+17.11 15:35:51 [StartDefaultTask] Start main thread...(13416)
+17.11 16:35:51 [StartTemp] Start sensor thread...(13416)
 RDY
 +CFUN: 1
 +CPIN: READY
@@ -85,14 +85,16 @@ AT+GSN
 864369032292264
 OK
 AT+CSQ
-+CSQ: 0,0
++CSQ: 15,0
 OK
-AT+CSQ
-+CSQ: 13,0
+AT+CREG?
++CREG: 0,2
 OK
 AT+CREG?
 +CREG: 0,1
 OK
+AT+CGATT=1
++CME ERROR: 100
 AT+CGATT=1
 OK
 AT+CIPSHUT
@@ -115,8 +117,8 @@ AT+CNTP
 OK
 +CNTP: 1
 AT+CCLK?
-+CCLK: "21/11/15,22:09:11+02"
-Set date/time 15/11/21 22:09:11+02 OK !
++CCLK: "21/11/17,16:17:48+02"
+Set date/time 17/11/21 16:17:48+02 OK !
 OK
 AT+SAPBR=0,1
 OK
@@ -131,19 +133,34 @@ Console commands:
 
 ```
 ongps
-15.10 22:09:30 time:200934 date:151121 lat:54.728221 lon:20.536935 sat:5 alt:83.6 spd:0.00 dir:179.80
-15.10 22:09:31 time:200935 date:151121 lat:54.728221 lon:20.536933 sat:5 alt:83.9 spd:0.00 dir:179.80
-15.10 22:09:32 time:200936 date:151121 lat:54.728221 lon:20.536932 sat:5 alt:84.0 spd:0.00 dir:179.80
-15.10 22:09:32 time:200937 date:151121 lat:54.728221 lon:20.536930 sat:5 alt:84.4 spd:0.00 dir:179.80
-15.10 22:09:33 time:200938 date:151121 lat:54.728221 lon:20.536928 sat:5 alt:84.6 spd:0.00 dir:179.80
-15.10 22:09:34 time:200939 date:151121 lat:54.728221 lon:20.536926 sat:5 alt:84.9 spd:0.00 dir:179.80
-15.10 22:09:35 time:200940 date:151121 lat:54.728221 lon:20.536924 sat:5 alt:85.1 spd:0.00 dir:179.80
-15.10 22:09:36 time:200941 date:151121 lat:54.728221 lon:20.536922 sat:5 alt:85.4 spd:0.00 dir:179.80
-15.10 22:09:37 time:200942 date:151121 lat:54.728221 lon:20.536922 sat:5 alt:86.0 spd:0.00 dir:179.80
+17.10 16:20:11 time:142033 date:171121 lat:54.727718 lon:20.537056 sat:8 alt:9.8 spd:0.00 dir:181.19
+17.10 16:20:11 time:142034 date:171121 lat:54.727718 lon:20.537054 sat:8 alt:9.8 spd:0.00 dir:181.19
+17.10 16:20:12 time:142035 date:171121 lat:54.727718 lon:20.537054 sat:9 alt:9.8 spd:0.00 dir:181.19
+17.10 16:20:13 time:142036 date:171121 lat:54.727718 lon:20.537054 sat:9 alt:9.8 spd:0.00 dir:181.19
+17.10 16:20:14 time:142037 date:171121 lat:54.727718 lon:20.537054 sat:9 alt:9.8 spd:0.00 dir:181.19
+17.10 16:20:15 time:142038 date:171121 lat:54.727718 lon:20.537054 sat:9 alt:10.0 spd:0.00 dir:181.19
+17.10 16:20:16 time:142039 date:171121 lat:54.727718 lon:20.537052 sat:9 alt:10.0 spd:0.00 dir:181.19
+17.10 16:20:17 time:142040 date:171121 lat:54.727718 lon:20.537052 sat:9 alt:10.1 spd:0.00 dir:181.19
 .
 .
 .
 offgps
+
+radio
+AT+FMOPEN=0
+OK
+AT+FMVOLUME=6
+OK
+AT+FMSCAN
+1018
+1025
+OK
+AT+FMFREQ=1025
+OK
+rlist
+17.10 16:22:38 Radio freq_list MHz:[101.8 102.5]
+AT+FMCLOSE
+OK
 ```
 
 
