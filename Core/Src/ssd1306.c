@@ -378,7 +378,7 @@ void i2c_ssd1306_text(const char *stroka)
 bool i2c_ssd1306_shift(uint8_t cy, uint8_t on_off)//0x2e - deactivate, 0x2f - activate
 {
 bool ret = true;
-
+HAL_StatusTypeDef rt = HAL_OK;
 
 	uint8_t dat[] = {OLED_CONTROL_BYTE_CMD_STREAM,
 						OLED_LEFT_HORIZONTAL_SCROLL,//to left shift
@@ -406,11 +406,11 @@ bool ret = true;
 #endif
 		//spi_ssd1306_WriteCmds(dat, len);
 		if (oled_withDMA) {
-			if (HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, dat, len) != HAL_OK) devError |= devI2C;
+			rt = HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, dat, len);//!= HAL_OK) devError |= devI2C;
 			//while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
 			while (!i2cRdy) {}
 		} else {
-			if (HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat, len, min_wait_ms) != HAL_OK) devError |= devI2C;
+			rt = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat, len, min_wait_ms);// != HAL_OK) devError |= devI2C;
 			i2cRdy = 1;
 		}
 #ifdef USED_FREERTOS
@@ -418,12 +418,15 @@ bool ret = true;
 	}
 #endif
 
+	if (rt != HAL_OK) devError |= devI2C;
+
 	return ret;
 }
 //-----------------------------------------------------------------------------------------
 bool i2c_ssd1306_set_scroll_area(uint8_t start, uint8_t stop)
 {
 bool ret = true;
+HAL_StatusTypeDef rt = HAL_OK;
 
 	uint8_t dat[] = {OLED_CONTROL_BYTE_CMD_STREAM, OLED_CMD_SHIFT_STOP, OLED_SET_VERTICAL_SCROLL_AREA, start, stop};
 
@@ -432,11 +435,11 @@ bool ret = true;
 	if (osSemaphoreAcquire(semHandle, waitSem) == osOK) {
 #endif
 		if (oled_withDMA) {
-			if (HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat)) != HAL_OK) devError |= devI2C;
+			rt = HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat));// != HAL_OK) devError |= devI2C;
 			//while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
 			while (!i2cRdy) {}
 		} else {
-			if (HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat), min_wait_ms) != HAL_OK) devError |= devI2C;
+			rt = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat, sizeof(dat), min_wait_ms);// != HAL_OK) devError |= devI2C;
 			i2cRdy = 1;
 		}
 #ifdef USED_FREERTOS
@@ -444,12 +447,15 @@ bool ret = true;
 	}
 #endif
 
+	if (rt != HAL_OK) devError |= devI2C;
+
 	return ret;
 }
 //-----------------------------------------------------------------------------------------
 bool i2c_ssd1306_scroll(uint8_t start, uint8_t stop, uint8_t on_off)//0x2e - deactivate, 0x2f - activate
 {
 bool ret = true;
+HAL_StatusTypeDef rt = HAL_OK;
 
 
 	uint8_t dat[] = {OLED_CONTROL_BYTE_CMD_STREAM,
@@ -476,11 +482,11 @@ bool ret = true;
 #endif
 		//spi_ssd1306_WriteCmds(dat, len);
 		if (oled_withDMA) {
-	    	if (HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, dat, len) != HAL_OK) devError |= devI2C;
+	    	rt = HAL_I2C_Master_Transmit_DMA(portOLED, OLED_I2C_ADDRESS, dat, len);// != HAL_OK) devError |= devI2C;
 	    	//while (HAL_I2C_GetState(portOLED) != HAL_I2C_STATE_READY) {}
 	    	while (!i2cRdy) {}
 		} else {
-	    	if (HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat, len, min_wait_ms) != HAL_OK) devError |= devI2C;
+	    	rt = HAL_I2C_Master_Transmit(portOLED, OLED_I2C_ADDRESS, dat, len, min_wait_ms);// != HAL_OK) devError |= devI2C;
 	    	i2cRdy = 1;
 		}
 #ifdef USED_FREERTOS
@@ -488,6 +494,8 @@ bool ret = true;
 	}
 #endif
 	//i2cRdy = 1;
+
+	if (rt != HAL_OK) devError |= devI2C;
 
 	return ret;
 }

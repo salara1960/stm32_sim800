@@ -94,6 +94,7 @@ enum {//INIT COMMANDS NUMBERS
 	iCMEE,
 	iCLTS,
 	iCMGF,
+	iCBC,
 	iCNMI,
 	iGMR,
 	iGSN,
@@ -366,7 +367,7 @@ UART_HandleTypeDef *portGPS;//порт GPS модуля (ATGM332D)
 TIM_HandleTypeDef *tmrDS18B20;
 
 
-#define cmd_iniMax  14
+#define cmd_iniMax  15
 #define cmd_timeMax  8
 #define cmd_netMax  11
 #define cmd_radioMax 4//5
@@ -389,6 +390,9 @@ const int8_t dBmRSSI[MAX_RSSI];
 
 char *cusd;
 dattim_t DT;
+
+
+osStatus_t coreStatus;
 
 
 #ifdef SET_SMS

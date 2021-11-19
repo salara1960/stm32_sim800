@@ -58,9 +58,9 @@
 AT-commands example:
 
 ```
-Start application version '1.8 (17.11.2021)'
-17.11 15:35:51 [StartDefaultTask] Start main thread...(13416)
-17.11 16:35:51 [StartTemp] Start sensor thread...(13416)
+Start application version '1.8.1 (19.11.2021)'
+19.11 19:13:50 [StartDefaultTask] Start main thread...(13416)
+19.11 19:13:50 [StartTemp] Start sensor thread...(13416)
 RDY
 +CFUN: 1
 +CPIN: READY
@@ -76,6 +76,9 @@ AT+CLTS=1
 OK
 AT+CMGF=0
 OK
+AT+CBC
++CBC: 0,79,4032
+OK
 AT+CNMI=1,2,0,1,0
 OK
 AT+GMR
@@ -85,7 +88,7 @@ AT+GSN
 864369032292264
 OK
 AT+CSQ
-+CSQ: 15,0
++CSQ: 11,0
 OK
 AT+CREG?
 +CREG: 0,2
@@ -117,8 +120,8 @@ AT+CNTP
 OK
 +CNTP: 1
 AT+CCLK?
-+CCLK: "21/11/17,16:17:48+02"
-Set date/time 17/11/21 16:17:48+02 OK !
++CCLK: "21/11/19,21:28:40+02"
+Set date/time 19/11/21 21:28:40+02 OK !
 OK
 AT+SAPBR=0,1
 OK
@@ -133,14 +136,21 @@ Console commands:
 
 ```
 ongps
-17.10 16:20:11 time:142033 date:171121 lat:54.727718 lon:20.537056 sat:8 alt:9.8 spd:0.00 dir:181.19
-17.10 16:20:11 time:142034 date:171121 lat:54.727718 lon:20.537054 sat:8 alt:9.8 spd:0.00 dir:181.19
-17.10 16:20:12 time:142035 date:171121 lat:54.727718 lon:20.537054 sat:9 alt:9.8 spd:0.00 dir:181.19
-17.10 16:20:13 time:142036 date:171121 lat:54.727718 lon:20.537054 sat:9 alt:9.8 spd:0.00 dir:181.19
-17.10 16:20:14 time:142037 date:171121 lat:54.727718 lon:20.537054 sat:9 alt:9.8 spd:0.00 dir:181.19
-17.10 16:20:15 time:142038 date:171121 lat:54.727718 lon:20.537054 sat:9 alt:10.0 spd:0.00 dir:181.19
-17.10 16:20:16 time:142039 date:171121 lat:54.727718 lon:20.537052 sat:9 alt:10.0 spd:0.00 dir:181.19
-17.10 16:20:17 time:142040 date:171121 lat:54.727718 lon:20.537052 sat:9 alt:10.1 spd:0.00 dir:181.19
+19.10 21:29:57 time:193008 date:191121 lat:54.727890 lon:20.536922 sat:6 alt:55.5 spd:0.00 dir:242.86
+19.10 21:29:57 time:193009 date:191121 lat:54.727890 lon:20.536924 sat:6 alt:55.5 spd:0.00 dir:242.86
+19.10 21:29:58 time:193010 date:191121 lat:54.727890 lon:20.536924 sat:6 alt:55.4 spd:0.00 dir:242.86
+19.10 21:29:59 time:193011 date:191121 lat:54.727890 lon:20.536920 sat:6 alt:56.0 spd:0.50 dir:242.86
+19.10 21:30:00 time:193012 date:191121 lat:54.727890 lon:20.536920 sat:6 alt:55.9 spd:0.00 dir:242.86
+19.10 21:30:01 time:193013 date:191121 lat:54.727890 lon:20.536920 sat:6 alt:55.7 spd:0.00 dir:242.86
+19.10 21:30:02 time:193014 date:191121 lat:54.727890 lon:20.536922 sat:6 alt:55.7 spd:0.00 dir:242.86
+19.10 21:30:03 time:193015 date:191121 lat:54.727890 lon:20.536922 sat:6 alt:55.7 spd:0.00 dir:242.86
+19.10 21:30:04 time:193016 date:191121 lat:54.727890 lon:20.536922 sat:6 alt:55.5 spd:0.00 dir:242.86
+19.10 21:30:04 time:193017 date:191121 lat:54.727890 lon:20.536924 sat:6 alt:55.5 spd:0.00 dir:242.86
+19.10 21:30:05 time:193018 date:191121 lat:54.727890 lon:20.536924 sat:6 alt:55.5 spd:0.00 dir:242.86
+19.10 21:30:06 time:193019 date:191121 lat:54.727890 lon:20.536924 sat:6 alt:55.5 spd:0.00 dir:242.86
+19.10 21:30:07 time:193020 date:191121 lat:54.727890 lon:20.536924 sat:6 alt:55.5 spd:0.00 dir:242.86
+19.10 21:30:08 time:193021 date:191121 lat:54.727890 lon:20.536924 sat:6 alt:55.5 spd:0.00 dir:242.86
+19.10 21:30:09 time:193022 date:191121 lat:54.727890 lon:20.536924 sat:6 alt:55.5 spd:0.00 dir:242.86
 .
 .
 .
@@ -158,9 +168,12 @@ OK
 AT+FMFREQ=1025
 OK
 rlist
-17.10 16:22:38 Radio freq_list MHz:[101.8 102.5]
+19.10 21:31:13 Radio freq_list MHz:[101.8 102.5]
 AT+FMCLOSE
 OK
+
+freemem
+19.10 21:32:56 [StartDefaultTask] Free heap memory size 13416
 ```
 
 

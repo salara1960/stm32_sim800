@@ -68,7 +68,7 @@ osThreadId_t mainTaskHandle;
 const osThreadAttr_t mainTask_attributes = {
   .name = "mainTask",
   .priority = (osPriority_t) osPriorityNormal2,
-  .stack_size = 896 * 4
+  .stack_size = 896 * 4//768 * 4//896 * 4
 };
 /* Definitions for tempTask */
 osThreadId_t tempTaskHandle;
@@ -125,10 +125,11 @@ const osMutexAttr_t rtcMutex_attributes = {
 //const char *version = "1.5.3 (15.11.2021)";//minor changes for date/time set via sntp server
 //const char *version = "1.6 (15.11.2021)";//major changes for get gps data
 //const char *version = "1.7 (16.11.2021)";//major changes : remove gps thread and move nmea parser to main thread
-const char *version = "1.8 (17.11.2021)";
+//const char *version = "1.8 (17.11.2021)";
+const char *version = "1.8.1 (19.11.2021)";
 
 
-volatile time_t epoch = 1637171390;//1637156150;//1637080774;//1637006802;
+volatile time_t epoch = 1637342030;//1637171390;//1637156150;//1637080774;//1637006802;
 						//1636985372;//1636907840;//1636714630;//1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
 						//1636208753;//1636148268;//1636114042;//1636106564;//1636045527;//1636022804;//1635975820;//1635956750;
 						//1635854199;//1635762840;//1635701599;//1635681180;//1635627245;//1635505880;//1635001599;//1634820289;
@@ -148,7 +149,9 @@ const char *_radio = "radio";
 const char *_rlist = "rlist";
 const char *_rnext = "rnext";
 const char *_flags = "flags";
+const char *_freemem = "freemem";
 volatile bool prn_flags = false;
+volatile bool prn_freemem = false;
 volatile uint32_t extDate = 0;
 static char RxBuf[MAX_UART_BUF] = {0};// Буфер для приёма данных из порта portLOG
 uint8_t rx_uk;
@@ -247,7 +250,7 @@ volatile bool prn_rlist = false;
 
 
 //------------   AT команды GSM модуля   ------------------
-//const int8_t cmd_iniMax = 14;
+//const int8_t cmd_iniMax = 15;
 const ats_t cmd_ini[cmd_iniMax] = {//INIT
 		{"AT\r\n","OK"},
 		{"ATE0\r\n","OK"},
@@ -255,6 +258,7 @@ const ats_t cmd_ini[cmd_iniMax] = {//INIT
 		{"AT+CLTS=1\r\n","OK"},
 		//{"AT+GSMBUSY=1;+CMGF=0\r\n","OK"},
 		{"AT+CMGF=0\r\n","OK"},
+		{"AT+CBC\r\n","OK"},
 		{"AT+CNMI=1,2,0,1,0\r\n","OK"},
 		{"AT+GMR\r\n","OK"},//Revision:1418B04SIM800L24
 		{"AT+GSN\r\n","OK"},//864369032292264
@@ -358,6 +362,7 @@ const int8_t dBmRSSI[MAX_RSSI] = {
 int cmdID = -1;
 int evtID = -1;
 
+osStatus_t coreStatus = osError;
 
 
 /* USER CODE END PV */
@@ -375,7 +380,6 @@ static void MX_USART2_UART_Init(void);
 static void MX_USART6_UART_Init(void);
 static void MX_TIM10_Init(void);
 void StartDefaultTask(void *argument);
-void StartGps(void *argument);
 void StartTemp(void *argument);
 
 /* USER CODE BEGIN PFP */
@@ -489,7 +493,7 @@ int main(void)
   /* USER CODE END 2 */
 
   /* Init scheduler */
-  osKernelInitialize();
+  coreStatus = osKernelInitialize();
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
@@ -521,7 +525,11 @@ int main(void)
 
   gsmToFlag   = initRECQ(&gsmTo);
   gsmFromFlag = initRECQ(&gsmFrom);
+#ifdef SET_GPS
   gpsFromFlag = initRECQ(&gpsFrom);
+#endif
+
+  set_Date((time_t)epoch);//set time last edit
 
   /* add queues, ... */
   //"start" rx_gsm_interrupt
@@ -1071,6 +1079,8 @@ void serialLOG()
 					if (putRECQ(to, &gsmTo) < 0) {
 						devError |= devQue;
 						free(to);
+					} else {
+						//if (devError & devQue) devError &= ~devQue;
 					}
 				} else devError |= devMem;
 			}
@@ -1082,6 +1092,8 @@ void serialLOG()
 			if (!radio_flag) radio_flag = 1;
 		} else if (strstr(RxBuf, _rlist)) {
 			if (!prn_rlist) prn_rlist = 1;
+		}  else if (strstr(RxBuf, _freemem)) {
+			if (!prn_freemem) prn_freemem = 1;
 		}
 #ifdef SET_GPS
 		else if (strstr(RxBuf, _ongps)) {
@@ -1110,14 +1122,22 @@ void serialGSM()
 			if (gsmFromFlag) {
 				char *from = (char *)calloc(1, len + 1);
 				if (from) {
-					if (strlen(from) != (len + 1)) {
+					//if (strlen(from) == (len + 1)) {
 						memcpy(from, gsmBuf, len);
 						if (putRECQ(from, &gsmFrom) < 0) {
 							devError |= devQue;
 							free(from);
+						} else {
+							if (devError & devQue) devError &= ~devQue;
 						}
-					} else devError |= devMem;
-				} else devError |= devMem;
+						//if (devError & devMem) devError &= ~devMem;
+					//} else {
+					//	devError |= devMem;
+					//	free(from);
+					//}
+				} else {
+					devError |= devMem;
+				}
 			}
 
 			gsm_uk = 0;
@@ -1149,7 +1169,7 @@ void serialGPS()
 							if (putRECQ(gf, &gpsFrom) < 0) {
 								devError |= devQue;
 								free(gf);
-							}
+							} //else if (devError & devQue) devError &= ~devQue;
 						} else devError |= devMem;
 					} else devError |= devMem;
 				}
@@ -1252,10 +1272,9 @@ void StartDefaultTask(void *argument)
 //
 //-------------------------------------------------------------
 
-	gsmReset();
+	//gsmReset();
 
-	tZone = 2;
-	set_Date((time_t)(++epoch));
+	//set_Date((time_t)epoch);
 
 	Report(__func__, true, "Start main thread...(%lu)\r\n", xPortGetFreeHeapSize());
 
@@ -1267,7 +1286,7 @@ void StartDefaultTask(void *argument)
 	char buf2[MAX_GSM_BUF] = {0};
 	char scr[MAX_GSM_BUF] = {0};
 	char cmdBuf[128] = {0};
-	int8_t slin = 3, elin = 5, clin = 3, at_line = 2, err_line = 8, temp_line = 6, cor_line = 7;
+	int8_t slin = 3, elin = 5, clin = 3, at_line = 2, err_line = 8, temp_line = 6;
 
 
 	int8_t cur_cmd = -1;
@@ -1285,9 +1304,11 @@ void StartDefaultTask(void *argument)
 	float temp = 0.0;
 	bool dsOK = false;
 	bool go = false;
+#ifdef SET_GPS
 	uint8_t sch = 0;
-
+	int8_t cor_line = 7;
 	uint32_t gps_tmr = get_tmr10(1);
+#endif
 	uint32_t cur_sec = get_tmr10(1);
 
 	while (!restart_flag) {
@@ -1324,6 +1345,7 @@ void StartDefaultTask(void *argument)
 			if (getRECQ(buf, &gsmTo) >= 0) {
 				if (HAL_UART_Transmit_DMA(portGSM, (uint8_t *)buf, strlen(buf)) != HAL_OK) devError |= devUART;
 				else {
+					//if (devError & devUART) devError &= ~ devUART;
 					if (strstr(buf, cmd_radio[fSCAN].cmd)) {
 						gsmFlags.rlist = 1;
 						indList = 0;
@@ -1376,8 +1398,10 @@ void StartDefaultTask(void *argument)
 					i2c_ssd1306_clear_lines(at_line, elin);
 
 					tmr_cmd = get_tmr(1);
-					gps_tmr = get_tmr10(1);
 					cur_sec = get_tmr10(1);
+#ifdef SET_GPS
+					gps_tmr = cur_sec;//get_tmr10(1);
+#endif
 
 					continue;
 				}
@@ -1386,7 +1410,7 @@ void StartDefaultTask(void *argument)
 					if (uk_ack) {
 						if (strstr(buf2, uk_ack)) {
 							next_cmd = true;
-							tmr_next = get_tmr10(_150ms);
+							tmr_next = get_tmr10(_200ms);
 							bool repeat = false;
 
 							switch (cur_cmd) {
@@ -1400,11 +1424,12 @@ void StartDefaultTask(void *argument)
 										if (gsmRSSI <= dBmRSSI[0]) repeat = true;
 									}
 								break;
-								/*case fOPEN:
-									if (grp_cmd == seqRadio) {
-										if (gsmFlags.error) repeat = true;
-									}
-								break;*/
+								case iCGATT:
+									if (gsmFlags.ok) gsmFlags.cGat = 1;
+								break;
+								case iCMEE:
+									if (gsmFlags.ok) gsmFlags.cmee = 1;
+								break;
 							}
 							if (repeat) {
 								next_cmd = false;
@@ -1499,6 +1524,7 @@ void StartDefaultTask(void *argument)
 												lens = sprintf(cmdBuf, "%s\"%s\"%s", uk_cmd, APN, eol);
 												uk_cmd = &cmdBuf[0];
 											} else if (cur_cmd == tCNTP_SRV) {//{"AT+CNTP=","OK"},//\"pool.ntp.org\",8\r\n" | "SNTP",TZONE<<2 + eol
+												strncpy(cntpSRV, SNTP, sizeof(cntpSRV) - 1);
 												lens = sprintf(cmdBuf, "%s\"%s\",%u%s", uk_cmd, SNTP, (TZONE << 2), eol);
 												uk_cmd = &cmdBuf[0];
 											} else if (cur_cmd == tCCLK) gsmFlags.okDT = 0;
@@ -1530,8 +1556,14 @@ void StartDefaultTask(void *argument)
 									if (cmds) {
 										strcpy(cmds, uk_cmd);
 										if (putRECQ(cmds, &gsmTo) < 0) devError |= devQue;
-																  else tmr_ack = get_tmr10(_15s);//wait answer from module 10 sec
-									} else devError |= devMem;
+										else {
+											//if (devError & devQue) devError &= ~ devQue;
+											tmr_ack = get_tmr10(_15s);//wait answer from module 10 sec
+										}
+										//if (devError & devMem) devError &= ~ devMem;
+									} else {
+										devError |= devMem;
+									}
 									if (devError) {
 										cmd_err = CMD_REPEAT;
 										cur_cmd = -1;
@@ -1630,6 +1662,9 @@ void StartDefaultTask(void *argument)
 		} else if (prn_rlist) {
 			prn_rlist = false;
 			prnRList();
+		} else if (prn_freemem) {
+			prn_freemem = false;
+			Report(__func__, true, "Free heap memory size %lu\r\n", xPortGetFreeHeapSize());
 		}
 		//
 		//

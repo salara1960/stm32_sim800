@@ -358,6 +358,7 @@ bool yes = false;
 RTC_TimeTypeDef sTime;
 RTC_DateTypeDef sDate;
 struct tm ts;
+bool os_core = false;
 
 	gmtime_r(&ep, &ts);
 
@@ -370,19 +371,26 @@ struct tm ts;
 	sTime.Seconds = ts.tm_sec;
 
 	//__HAL_RCC_RTC_DISABLE();
+	if (coreStatus == osOK) os_core = true;
+
 #ifdef USED_FREERTOS
-	if (osMutexAcquire(rtcMutex, waitRTC) == osOK) {
+	if (os_core) {
+		if (osMutexAcquire(rtcMutex, waitRTC) == osOK) {
+	}
 #endif
 		if (HAL_RTC_SetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
 		else {
 			if (HAL_RTC_SetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
 			else {
+				//if (devError & devRTC) devError &= ~devRTC;
 				yes = true;
 			}
 		}
 
 #ifdef USED_FREERTOS
-		osMutexRelease(rtcMutex);
+	if (os_core) {
+			osMutexRelease(rtcMutex);
+		}
 	}
 #endif
 
@@ -479,6 +487,7 @@ bool yes = false;
 		else {
 			if (HAL_RTC_GetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;//errLedOn(__func__);
 			else {
+				//if (devError & devRTC) devError &= ~devRTC;
 				yes = true;
 			}
 		}
@@ -526,7 +535,10 @@ int dl = 0;
 		vsnprintf(buff + dl, len - dl, fmt, args);
 		uartRdy = 0;
 		//er = HAL_UART_Transmit(&huart1, (uint8_t *)buff, strlen(buff), 1000);
-		if (HAL_UART_Transmit_DMA(portLOG, (uint8_t *)buff, strlen(buff)) != HAL_OK) devError |= devUART;
+		if (HAL_UART_Transmit_DMA(portLOG, (uint8_t *)buff, strlen(buff)) != HAL_OK)
+			devError |= devUART;
+		//else
+		//	if (devError & devUART) devError &= ~devUART;
 		/**/
 		while (HAL_UART_GetState(portLOG) != HAL_UART_STATE_READY) {
 			if (HAL_UART_GetState(portLOG) == HAL_UART_STATE_BUSY_RX) break;
@@ -581,6 +593,7 @@ RTC_DateTypeDef sDate;
 		else {
 			if (HAL_RTC_SetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
 			else {
+				//if (devError & devRTC) devError &= ~devRTC;
 				ret = true;
 			}
 		}
@@ -602,7 +615,7 @@ void prnFlags(void *g)
 		   true,
 		   "Flags:\n\trdy:%u\n\tcFun:%u\n\tcPin:%u\n\tCallReady:%u\n\tSMSReady:%u\n\tbegin:%u\n\treg:%u\n\tcGat:%u\n\tcmee:%u\n"
 		   "\tcntp:%u\n\tokDT:%u\n\tstate:%u\n\tconnect:%u\n\terror:%u\n\tok:%u\n"
-		   "\tsntpSRV:'%s'\n\tsntpDT:'%s'\n\timei:%s\n\tVcc:%u\r\n",
+		   "\tsntpSRV:'%s'\n\tsntpDT:'%s'\n\timei:%s\n\tVcc:%u mv\r\n",
 		   gf->rdy, gf->cFun, gf->cPin, gf->cReady, gf->sReady, gf->begin, gf->reg, gf->cGat, gf->cmee,
 		   gf->tReady, gf->okDT, gf->state, gf->connect, gf->error, gf->ok,
 		   cntpSRV, sntpDT, gsmIMEI, VCC);
