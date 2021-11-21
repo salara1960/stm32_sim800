@@ -103,6 +103,7 @@ int8_t parseEvent(char *in, void *g);
 	extern int ucs2_to_utf8(char *buf_in, uint8_t *udl, uint8_t *utf8);
 #endif
 void toUppers(char *st);
+uint16_t mkData(char *data);
 
 //------------------------------------------------------------------------
 

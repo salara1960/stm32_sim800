@@ -5,7 +5,7 @@
  *      Author: alarm
  */
 
-#define MAX_UART_BUF 896
+#define MAX_UART_BUF 840//896
 
 #define SET_STATIC_MEM
 //#define SET_CALLOC_MEM

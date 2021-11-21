@@ -614,10 +614,11 @@ void prnFlags(void *g)
 	Report(NULL,
 		   true,
 		   "Flags:\n\trdy:%u\n\tcFun:%u\n\tcPin:%u\n\tCallReady:%u\n\tSMSReady:%u\n\tbegin:%u\n\treg:%u\n\tcGat:%u\n\tcmee:%u\n"
-		   "\tcntp:%u\n\tokDT:%u\n\tstate:%u\n\tconnect:%u\n\terror:%u\n\tok:%u\n"
+		   "\tcntp:%u\n\tokDT:%u\n\tstate:%s\n\tconnect:%u\n\tfail:%u\n\tclosed:1\n\tshut:%u\n\terror:%u\n\tok:%u\n"
 		   "\tsntpSRV:'%s'\n\tsntpDT:'%s'\n\timei:%s\n\tVcc:%u mv\r\n",
 		   gf->rdy, gf->cFun, gf->cPin, gf->cReady, gf->sReady, gf->begin, gf->reg, gf->cGat, gf->cmee,
-		   gf->tReady, gf->okDT, gf->state, gf->connect, gf->error, gf->ok,
+		   gf->tReady, gf->okDT, gsmState[gf->state], gf->connect,
+		   gf->fail, gf->closed, gf->shut, gf->error, gf->ok,
 		   cntpSRV, sntpDT, gsmIMEI, VCC);
 }
 //------------------------------------------------------------------------------------------
@@ -826,17 +827,45 @@ int i, j, k;
 			break;
 			case _STATE:
 			{
-				int8_t j =-1;
-				while(++j < gsmStateMax) {
+				int8_t j = -1;
+				while (++j < gsmStateMax) {
 					if (strstr(uks, gsmState[j])) {
 						gf->state = j;
 						break;
 					}
 				}
+				if (j == gsmStateMax)  gf->state = gsmStateMax - 1;
 			}
 			break;
 			case _CONNECTOK:
 				gf->connect = 1;
+				gf->send = 0;
+				gf->fail = gf->closed = 0;
+				gf->shut = gf->error = 0;
+			break;
+			case _CONNECTFAIL:
+				gf->fail = 1;
+				gf->connect = gf->shut = 0;
+				gf->prompt = 0;
+				ret = cCIPSHUT;
+			break;
+			case _CLOSED:
+				gf->closed = 1;
+				gf->connect = gf->prompt = 0;
+				gf->error = 0;
+				ret = cCIPSHUT;
+			break;
+			case _SHUTOK:
+				gf->shut = 1;
+				gf->connect = gf->prompt = 0;
+				gf->error = 0;
+			break;
+			case _PROMPT:
+				gf->prompt = 1;
+				gf->sendOK = 0;
+			break;
+			case _SENDOK:
+				gf->sendOK = 1;
 			break;
 			case _ERROR:
 				gf->error = 1;
@@ -940,6 +969,25 @@ int i;
     for (i = 0; i < strlen(st); i++) *(st + i) = toupper(*(st + i));
 }
 //-----------------------------------------------------------------------------------------
+uint16_t mkData(char *data)
+{
+s_float_t flo = {0, 0};
+
+	sprintf(data, "{\"dev\":\"%s\"", dev_name);
+#ifdef SET_TEMP_SENSOR
+	floatPart(temp, &flo); sprintf(data+strlen(data), ",\"temp\":%lu.%lu", flo.cel, flo.dro / 10000);
+#endif
+#ifdef SET_GPS
+	floatPart(GPS.dec_latitude, &flo); sprintf(data+strlen(data),",\"lat\":%02lu.%04lu",  flo.cel, flo.dro / 100);
+	floatPart(GPS.dec_longitude,&flo); sprintf(data+strlen(data),",\"lon\":%02lu.%04lu", flo.cel, flo.dro / 100);
+	floatPart(GPS.msl_altitude, &flo); sprintf(data+strlen(data),",\"sat\":%d,\"alt\":%lu", GPS.satelites, flo.cel);
+	floatPart(GPS.speed_k, &flo);      sprintf(data+strlen(data), ",\"spd\":%lu.%02lu", flo.cel, flo.dro/10000);
+	floatPart(GPS.course_d, &flo);     sprintf(data+strlen(data), ",\"dir\":%lu.%02lu", flo.cel, flo.dro/10000);
+#endif
+	sprintf(data+strlen(data), "}\r\n%c", CTRL_Z);
+
+	return (uint16_t)strlen(data);
+}
 //-----------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------
 

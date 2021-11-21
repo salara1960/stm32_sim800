@@ -68,7 +68,7 @@ osThreadId_t mainTaskHandle;
 const osThreadAttr_t mainTask_attributes = {
   .name = "mainTask",
   .priority = (osPriority_t) osPriorityNormal2,
-  .stack_size = 896 * 4//768 * 4//896 * 4
+  .stack_size = 1024 * 4//768 * 4//896 * 4
 };
 /* Definitions for tempTask */
 osThreadId_t tempTaskHandle;
@@ -126,10 +126,12 @@ const osMutexAttr_t rtcMutex_attributes = {
 //const char *version = "1.6 (15.11.2021)";//major changes for get gps data
 //const char *version = "1.7 (16.11.2021)";//major changes : remove gps thread and move nmea parser to main thread
 //const char *version = "1.8 (17.11.2021)";
-const char *version = "1.8.1 (19.11.2021)";
+//const char *version = "1.8.1 (19.11.2021)";
+//const char *version = "1.9 (20.11.2021)";
+const char *version = "1.9.1 (21.11.2021)";
 
 
-volatile time_t epoch = 1637342030;//1637171390;//1637156150;//1637080774;//1637006802;
+volatile time_t epoch = 1637500605;//1637421807;//1637342030;//1637171390;//1637156150;//1637080774;//1637006802;
 						//1636985372;//1636907840;//1636714630;//1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
 						//1636208753;//1636148268;//1636114042;//1636106564;//1636045527;//1636022804;//1635975820;//1635956750;
 						//1635854199;//1635762840;//1635701599;//1635681180;//1635627245;//1635505880;//1635001599;//1634820289;
@@ -138,6 +140,7 @@ int8_t tZone = 2;
 volatile uint32_t cnt_err = 0;
 volatile uint8_t restart_flag = 0;
 volatile uint8_t sntp_flag = 0;
+volatile uint8_t ini_flag = 0;
 volatile uint8_t radio_flag = 0;
 volatile uint32_t secCounter = 0;
 volatile uint32_t HalfSecCounter = 0;
@@ -150,8 +153,11 @@ const char *_rlist = "rlist";
 const char *_rnext = "rnext";
 const char *_flags = "flags";
 const char *_freemem = "freemem";
+const char *_net  = "net";
+const char *_ini  = "ini";
 volatile bool prn_flags = false;
 volatile bool prn_freemem = false;
+volatile bool net_flag = false;
 volatile uint32_t extDate = 0;
 static char RxBuf[MAX_UART_BUF] = {0};// Буфер для приёма данных из порта portLOG
 uint8_t rx_uk;
@@ -193,6 +199,7 @@ SPI_HandleTypeDef *portFLASH = &hspi1;//порт flash-памяти (w25q64)
 RTC_HandleTypeDef *portRTC = &hrtc;
 #ifdef SET_TEMP_SENSOR
 	TIM_HandleTypeDef *tmrDS18B20 = &htim10;
+	float temp = 0.0;
 #endif
 
 
@@ -215,6 +222,7 @@ uint16_t VCC = 0;
 char sntpDT[24] = {0};
 volatile bool gsmInit = false;
 volatile bool sntpInit = false;
+volatile bool netInit = false;
 
 char *cmds = NULL;
 char *cusd = NULL;
@@ -248,9 +256,12 @@ uint8_t indList = 0;
 uint16_t freqList[MAX_FREQ_LIST] = {0};
 volatile bool prn_rlist = false;
 
+uint32_t tmr_send = 0;
+const uint32_t send_period = _10s;
+
 
 //------------   AT команды GSM модуля   ------------------
-//const int8_t cmd_iniMax = 15;
+//const int8_t cmd_iniMax = 14;
 const ats_t cmd_ini[cmd_iniMax] = {//INIT
 		{"AT\r\n","OK"},
 		{"ATE0\r\n","OK"},
@@ -265,7 +276,7 @@ const ats_t cmd_ini[cmd_iniMax] = {//INIT
 		{"AT+CSQ\r\n","OK"},//+CSQ: 14,0
 		{"AT+CREG?\r\n","OK"},//+CREG: 0,1
 		{"AT+CGATT=1\r\n","OK"},
-		{"AT+CIPSHUT\r\n","SHUT OK"},
+//		{"AT+CIPSHUT\r\n","SHUT OK"},
 		{"AT+CIPMODE=0\r\n","OK"},
 		{"AT+CIPMUX=0\r\n","OK"}
 };
@@ -281,24 +292,24 @@ const ats_t cmd_time[cmd_timeMax] = {//GET TIME FROM SNTP SERVER
 		{"AT+CCLK?\r\n","OK"},//+CCLK: "21/11/01,12:49:31+02"
 		{"AT+SAPBR=0,1\r\n","OK"}
 };
-//const int8_t cmd_netMax = 11;
+//const int8_t cmd_netMax = 8;//11;
 const ats_t cmd_net[cmd_netMax] = {//SET CONTEXT AND MAKE CONNECTION
 		{"AT+CIPSTATUS\r\n","OK"},//after OK -> STATE: IP INITIAL
 		{"AT+CSTT=","OK"},//\"internet\",\"beeline\",\"beeline\"\r\n","OK"}, | "APN","LOGIN","PASSWORD" + eol
-		{"AT+CIPSTATUS\r\n","OK"},//after OK -> STATE: IP START
+		{"AT+CIPSTATUS\r\n","STATE: "},//after OK -> STATE: IP START
 		{"AT+CIICR\r\n","OK"},
-		{"AT+CIPSTATUS\r\n","OK"},//after OK -> STATE: IP GPRSACT
+		{"AT+CIPSTATUS\r\n","STATE: "},//after OK -> STATE: IP GPRSACT
 		{"AT+CIFSR\r\n",""},//10.206.118.240
-		{"AT+CIPSTATUS\r\n","OK"},//after OK -> STATE: IP STATUS
-		{"AT+CIPSTART=\"TCP\",","OK"},//\"213.149.17.142\",8778\r\n","OK"}//after OK -> CONNECT OK | "SRV"
+		{"AT+CIPSTATUS\r\n","STATE: "},//after OK -> STATE: IP STATUS
+		{"AT+CIPSTART=\"TCP\",","CONNECT OK"}//\"213.149.17.142\",8778\r\n","OK"}//after OK -> CONNECT OK | "SRV"
 		//
-		{"AT+CIPSEND\r\n",">"},//send data after '>'
+//		{"AT+CIPSEND\r\n",">"},//send data after '>'
 		//> QWERTY
 		//SEND OK
 		//qwerty
 		//
-		{"AT+CIPCLOSE\r\n","CLOSE OK"},
-		{"AT+CIPSHUT\r\n","SHUT OK"}
+//		{"AT+CIPCLOSE\r\n","CLOSE OK"},
+//		{"AT+CIPSHUT\r\n","SHUT OK"}
 };
 //const int8_t cmd_radioMax = 4;
 const ats_t cmd_radio[cmd_radioMax] = {
@@ -308,19 +319,21 @@ const ats_t cmd_radio[cmd_radioMax] = {
 		{"AT+FMFREQ=","OK"}//,//1025 ; установить чатоту 102.5 Мгц | 1025 + eol
 		//{"AT+FMCLOSE\r\n","OK"}
 };
-//const int8_t cmd_anyMax = 8;
+//const int8_t cmd_anyMax = 10;
 const ats_t cmd_any[cmd_anyMax] = {
 		{"AT+CUSD=1,","OK"},//"#102#"" | "#102#" + eol    | +CUSD: 0, " Vash balans 200.00 r.", 15
-		{"AT+CBC\r\n","OK"},//+CBC: 0,73,3988
 		{"AT+CCID\r\n","OK"},//8970199181027011035f
 		{"AT+CPIN?\r\n","OK"},//+CPIN: READY
 		{"AT+CGATT?\r\n","OK"},//+CGATT: 1
 		{"ATI\r\n","OK"},//SIM800 R14.18
-		{"AT+CMEE=","ok"},//0 or 1
-		{"AT+CCLK?\r\n","OK"}//+CCLK: "21/11/01,12:49:31+02"
+		{"AT+CMEE?\r\n","OK"},//0 or 1
+		{"AT+CCLK?\r\n","OK"},//+CCLK: "21/11/01,12:49:31+02"
+		{"AT+CIPCLOSE\r\n","CLOSE OK"},
+		{"AT+CIPSHUT\r\n","SHUT OK"},
+		{"AT+CIPSEND\r\n",">"}//send data after '>'
 };
 //------------   События от GSM модуля   ------------------
-//const int8_t gsmEventMax = 21;
+//const int8_t gsmEventMax = 26;
 const char *gsmEvent[gsmEventMax] = {
 		"RDY",
 		"+CFUN: ",//1
@@ -341,15 +354,22 @@ const char *gsmEvent[gsmEventMax] = {
 		"+SCLASS0: ",
 		"STATE: ",//"IP INITIAL","IP START","IP GPRSACT","IP STATUS"
 		"CONNECT OK",
+		"CONNECT FAIL",
+		"CLOSE",
+		"SHUT OK",
+		">",
+		"SEND OK",
 		"ERROR",
 		"OK"
 };
-//const int8_t gsmStateMax = 4;
+//const int8_t gsmStateMax = 6;
 const char *gsmState[gsmStateMax] = {
 		"IP INITIAL",
 		"IP START",
 		"IP GPRSACT",
-		"IP STATUS"
+		"IP STATUS",
+		"TCP CLOSED",
+		"???"
 };
 
 const int8_t dBmRSSI[MAX_RSSI] = {
@@ -1091,9 +1111,13 @@ void serialLOG()
 		} else if (strstr(RxBuf, _radio)) {
 			if (!radio_flag) radio_flag = 1;
 		} else if (strstr(RxBuf, _rlist)) {
-			if (!prn_rlist) prn_rlist = 1;
-		}  else if (strstr(RxBuf, _freemem)) {
-			if (!prn_freemem) prn_freemem = 1;
+			if (!prn_rlist) prn_rlist = true;
+		} else if (strstr(RxBuf, _freemem)) {
+			if (!prn_freemem) prn_freemem = true;
+		} else if (strstr(RxBuf, _net)) {
+			if (!net_flag) net_flag = true;
+		}  else if (strstr(RxBuf, _ini)) {
+			if (!ini_flag) ini_flag = 1;
 		}
 #ifdef SET_GPS
 		else if (strstr(RxBuf, _ongps)) {
@@ -1300,8 +1324,7 @@ void StartDefaultTask(void *argument)
 	uint32_t tmr_next = 0;
 	uint32_t tmr_ack = 0;
 	uint8_t atTotal = 0;
-//	int8_t result = -1;
-	float temp = 0.0;
+	int8_t result = -1;
 	bool dsOK = false;
 	bool go = false;
 #ifdef SET_GPS
@@ -1374,8 +1397,8 @@ void StartDefaultTask(void *argument)
 				Report(NULL, false, "%s", buf2);
 				//
 				if ((uks = strstr(buf2, "\r\n")) != NULL) *uks = '\0';
-				//result =
-						parseEvent(buf2, (void *)&gsmFlags);
+				//
+				result = parseEvent(buf2, (void *)&gsmFlags);
 				//
 				if (gsmFlags.begin) {
 					gsmFlags.begin = 0;
@@ -1393,6 +1416,7 @@ void StartDefaultTask(void *argument)
 					//dsOK = false;
 					go = false;
 					gsmInit = sntpInit = false;
+					netInit = false;
 
 					Report(NULL, true, "Restart main loop !\r\n");
 					i2c_ssd1306_clear_lines(at_line, elin);
@@ -1404,6 +1428,25 @@ void StartDefaultTask(void *argument)
 #endif
 
 					continue;
+				}
+				//
+				if (gsmFlags.prompt) {
+					gsmFlags.prompt = 0;
+					uint16_t dln = mkData(cmdBuf);
+					if (dln) {
+						//if (HAL_UART_Transmit_DMA(portGSM, (uint8_t *)cmdBuf, dln) != HAL_OK) devError |= devUART;
+						//																 else Report(NULL, false, "%s", cmdBuf);
+						if (cmds) free(cmds);
+						cmds = (char *)calloc(1, strlen(cmdBuf) + 1);
+						if (cmds) {
+							strcpy(cmds, cmdBuf);
+							if (putRECQ(cmds, &gsmTo) < 0) devError |= devQue;
+							else {
+								Report(NULL, false, cmds);
+								gsmFlags.send = 0;
+							}
+						} else devError |= devMem;
+					}
 				}
 				//
 				if (at_auto) {
@@ -1457,10 +1500,42 @@ void StartDefaultTask(void *argument)
 				//
 			}
 		}
-		//
+		/**/
+		if (!tmr_send) {// && !at_auto) {
+			if (gsmFlags.connect) tmr_send = get_tmr10(0);
+		}
+		if (tmr_send && !gsmFlags.send) {
+			if (check_tmr10(tmr_send)) {
+				if (gsmFlags.connect) {
+					//
+					//  cmd_send start
+					if (cmds) free(cmds);
+					cmds = (char *)calloc(1, CMD_LEN + 1);
+					if (cmds) {
+						strcpy(cmds, cmd_any[cCIPSEND].cmd);
+						if (putRECQ(cmds, &gsmTo) < 0) devError |= devQue;
+						else {
+							gsmFlags.send = 1;
+							Report(NULL, false, cmds);
+						}
+					} else devError |= devMem;
+					//
+					//
+					tmr_send = get_tmr10(send_period);
+				} else tmr_send = 0;
+			}
+		}
+		/**/
 		if (!at_auto) {
 			go = false;
-			if (sntp_flag) {
+			if (ini_flag) {
+				ini_flag = 0;
+				gsmInit = 0;
+				grp_cmd = seqInit;
+				atTotal = cmd_iniMax;
+				cmd_adr = &cmd_ini[0].cmd[0];
+				go = true;
+			} else if (sntp_flag) {
 				sntp_flag = 0;
 				sntpInit = 0;
 				grp_cmd = seqTime;
@@ -1472,6 +1547,12 @@ void StartDefaultTask(void *argument)
 				grp_cmd = seqRadio;
 				atTotal = cmd_radioMax;
 				cmd_adr = &cmd_radio[0].cmd[0];
+				go = true;
+			}  else if (net_flag) {
+				net_flag = false;
+				grp_cmd = seqNet;
+				atTotal = cmd_netMax;
+				cmd_adr = &cmd_net[0].cmd[0];
 				go = true;
 			}
 			if (go) {
@@ -1493,6 +1574,10 @@ void StartDefaultTask(void *argument)
 						grp_cmd = seqTime;
 						atTotal = cmd_timeMax;
 						cmd_adr = &cmd_time[0].cmd[0];
+					} else if (!netInit) {
+						grp_cmd = seqNet;
+						atTotal = cmd_netMax;
+						cmd_adr = &cmd_net[0].cmd[0];
 					}
 					tmr_cmd = tmr_ack = 0;
 					at_auto = true;
@@ -1514,6 +1599,7 @@ void StartDefaultTask(void *argument)
 							case seqInit:
 							case seqTime:
 							case seqRadio:
+							case seqNet:
 								if (cur_cmd < atTotal) {
 									int lens = CMD_LEN;
 									uk_cmd = cmd_adr + (cur_cmd * sizeof(ats_t));//cmd
@@ -1549,9 +1635,19 @@ void StartDefaultTask(void *argument)
 												uk_cmd = &cmdBuf[0];
 											}
 										break;
+										case seqNet:
+											if (cur_cmd == nCSTT) {//"AT+CSTT=\"internet\",\"beeline\",\"beeline\"\r\n","OK", | "APN","LOGIN","PASSWORD" + eol
+												lens = sprintf(cmdBuf, "%s\"%s\",\"%s\",\"%s\"%s", uk_cmd, APN, LOGIN, PASSWORD, eol);
+												uk_cmd = &cmdBuf[0];
+											} else if (cur_cmd == nCIPSTART) {//"AT+CIPSTART=\"TCP\",","CONNECT OK"//\"213.149.17.142\",8778\r\n","CONNECT OK"//after OK -> CONNECT OK | "SRV"
+												lens = sprintf(cmdBuf, "%s\"%s\",%u%s", uk_cmd, SRV_ADR, SRV_PORT, eol);
+												cmdBuf[lens] = '\0';
+												uk_cmd = &cmdBuf[0];
+											}
+										break;
 									}
-									//
-									if (cmds) free(cmds);
+									/**/
+									if (cmds) { free(cmds); cmds = NULL; }
 									cmds = (char *)calloc(1, lens + 1);
 									if (cmds) {
 										strcpy(cmds, uk_cmd);
@@ -1587,6 +1683,12 @@ void StartDefaultTask(void *argument)
 										}
 									} else if (grp_cmd == seqTime) {
 										sntpInit = true;
+										if (!netInit) {
+											grp_cmd = seqNet;
+											tmr_cmd = get_tmr(1);
+										}
+									} else if (grp_cmd == seqNet) {
+										netInit = true;
 									}
 								}
 							break;
@@ -1602,16 +1704,22 @@ void StartDefaultTask(void *argument)
 						cmd_err = CMD_REPEAT;
 						tmr_next = get_tmr10(_750ms);
 					} else {
-						if (cur_cmd > 0) cur_cmd--;
-						tmr_next = get_tmr10(_2s);
+						if (grp_cmd != seqNet) {
+							if (cur_cmd > 0) cur_cmd--;
+							tmr_next = get_tmr10(_2s);
+						} else {
+							cur_cmd = atTotal = cmd_timeMax;
+							cmd_err = CMD_REPEAT;
+							tmr_next = get_tmr10(_750ms);
+						}
 					}
 					next_cmd = true;
 					tmr_ack = 0;
 				}
 			}
 			//
-		}/* else {
-			if (result != -1) {//== cCCLK)
+		} else {
+			if (result != -1) {//== cCIPSHUT
 				if (cmds) free(cmds);
 				cmds = (char *)calloc(1, CMD_LEN + 1);
 				if (cmds) {
@@ -1621,7 +1729,7 @@ void StartDefaultTask(void *argument)
 				} else devError |= devMem;
 				result = -1;
 			}
-		}*/
+		}
 		//
 #ifdef SET_SMS
 		//-------------------------   concat sms parts by timer   ------------------------
@@ -1671,7 +1779,7 @@ void StartDefaultTask(void *argument)
 		if (devError) {
 			errLedOn(NULL);
 #ifdef SET_OLED_I2C
-			sprintf(scr, "err: 0x%X", devError);
+			sprintf(scr, "er: 0x%X", devError);
 			i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, err_line, true);
 #endif
 			devError = 0;

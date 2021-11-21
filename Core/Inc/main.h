@@ -101,7 +101,6 @@ enum {//INIT COMMANDS NUMBERS
 	iCSQ,
 	iCREG,
 	iCGATT,
-	iCIPSHUT,
 	iCIPMODE,
 	iCIPMUX
 };
@@ -120,11 +119,11 @@ enum {
 	nCIPSTATUS = 0,
 	nCSTT,
 	//{"AT+CIPSTATUS\r\n","OK"},//after OK -> STATE: IP START
-	nCIICR,
+	nCIICR = 3,
 	//{"AT+CIPSTATUS\r\n","OK"},//after OK -> STATE: IP GPRSACT
-	nCIFSR,
+	nCIFSR = 5,
 	//{"AT+CIPSTATUS\r\n","OK"},//after OK -> STATE: IP STATUS
-	nCIPSTART,
+	nCIPSTART = 7,
 	nCIPSEND,
 	//> QWERTY
 	//SEND OK
@@ -141,13 +140,15 @@ enum {
 };
 enum {
 	cCUSD = 0,
-	cCBC,
 	cCCID,
 	cCPIN,
 	cCGATT,
 	cATI,
 	cCMEE,
-	cCCLK
+	cCCLK,
+	cCLOSE,
+	cCIPSHUT,
+	cCIPSEND
 };
 enum {
 	_RDY = 0,
@@ -169,6 +170,11 @@ enum {
 	_SCLASS0,
 	_STATE,
 	_CONNECTOK,
+	_CONNECTFAIL,
+	_CLOSED,
+	_SHUTOK,
+	_PROMPT,
+	_SENDOK,
 	_ERROR,
 	_OK
 };
@@ -223,7 +229,7 @@ enum {
 #define PASSWORD "beeline"
 #define SNTP     "pool.ntp.org"
 #define TZONE    2
-#define SRV_ADR  "213.149.17.142"
+#define SRV_ADR  "37.60.208.11"//"109.111.142.31"//"91.109.152.100"//"91.109.132.11"
 #define SRV_PORT 8778
 
 
@@ -277,8 +283,14 @@ typedef struct {
 	unsigned int sms:1;
 	unsigned int rlist:1;
 	unsigned int ropen:1;
-	unsigned int state:2;
+	unsigned int state:3;
 	unsigned int connect:1;
+	unsigned int fail:1;
+	unsigned int closed:1;
+	unsigned int shut:1;
+	unsigned int prompt:1;
+	unsigned int send:1;
+	unsigned int sendOK:1;
 	unsigned int error:1;
 	unsigned int ok:1;
 } gsmFlags_t;
@@ -347,10 +359,10 @@ void Error_Handler(void);
 	char PrnBuf[MAX_UART_BUF];// Служебный буфер для функции Report()
 #endif
 
-//#ifdef SET_TEMP_SENSOR
-//	#define	_DS18B20_GPIO	DS18B20_GPIO_Port
-//	#define	_DS18B20_PIN	DS18B20_Pin
-//#endif
+#ifdef SET_TEMP_SENSOR
+	float temp;
+#endif
+
 #ifdef USED_FREERTOS
 	osSemaphoreId_t semHandle;
 	osMutexId_t rtcMutex;
@@ -367,15 +379,15 @@ UART_HandleTypeDef *portGPS;//порт GPS модуля (ATGM332D)
 TIM_HandleTypeDef *tmrDS18B20;
 
 
-#define cmd_iniMax  15
-#define cmd_timeMax  8
-#define cmd_netMax  11
-#define cmd_radioMax 4//5
-#define cmd_anyMax   8
-#define gsmEventMax 21
-#define gsmStateMax  4
+#define cmd_iniMax   14
+#define cmd_timeMax   8
+#define cmd_netMax    8//11
+#define cmd_radioMax  4//5
+#define cmd_anyMax   10//9
+#define gsmEventMax  26//25//24//23//21
+#define gsmStateMax   6//4
 
-#define MAX_RSSI    32
+#define MAX_RSSI 32
 
 
 const char *gsmState[gsmStateMax];
@@ -391,9 +403,10 @@ const int8_t dBmRSSI[MAX_RSSI];
 char *cusd;
 dattim_t DT;
 
-
 osStatus_t coreStatus;
 
+uint32_t tmr_send;
+const uint32_t send_period;
 
 #ifdef SET_SMS
 	#define len_From 32

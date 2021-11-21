@@ -53,14 +53,15 @@
   Received data is transferred to the corresponding tasks through specific queues.
 * Support receive sms messages (with concat parts of messages).
 * Support FM radio onchip SIM800l.
+* Send data (from sensor ds18b20 and gps module atgm332d) to external tcp_server in json format (every 10 sec.)
 
 
 AT-commands example:
 
 ```
-Start application version '1.8.1 (19.11.2021)'
-19.11 19:13:50 [StartDefaultTask] Start main thread...(13416)
-19.11 19:13:50 [StartTemp] Start sensor thread...(13416)
+Start application version '1.9.1 (21.11.2021)'
+21.11 15:16:45 [StartDefaultTask] Start main thread...(14952)
+21.11 15:16:45 [StartTemp] Start sensor thread...(14952)
 RDY
 +CFUN: 1
 +CPIN: READY
@@ -77,7 +78,7 @@ OK
 AT+CMGF=0
 OK
 AT+CBC
-+CBC: 0,79,4032
++CBC: 0,74,3994
 OK
 AT+CNMI=1,2,0,1,0
 OK
@@ -88,7 +89,7 @@ AT+GSN
 864369032292264
 OK
 AT+CSQ
-+CSQ: 11,0
++CSQ: 13,0
 OK
 AT+CREG?
 +CREG: 0,2
@@ -100,8 +101,6 @@ AT+CGATT=1
 +CME ERROR: 100
 AT+CGATT=1
 OK
-AT+CIPSHUT
-SHUT OK
 AT+CIPMODE=0
 OK
 AT+CIPMUX=0
@@ -120,11 +119,52 @@ AT+CNTP
 OK
 +CNTP: 1
 AT+CCLK?
-+CCLK: "21/11/19,21:28:40+02"
-Set date/time 19/11/21 21:28:40+02 OK !
++CCLK: "21/11/21,20:09:59+02"
+Set date/time 21/11/21 20:09:59+02 OK !
 OK
 AT+SAPBR=0,1
 OK
+AT+CIPSTATUS
+OK
+STATE: IP INITIAL
+AT+CSTT="internet","beeline","beeline"
+OK
+AT+CIPSTATUS
+OK
+STATE: IP START
+AT+CIICR
+OK
+AT+CIPSTATUS
+OK
+STATE: IP GPRSACT
+AT+CIFSR
+10.215.109.252
+AT+CIPSTATUS
+OK
+STATE: IP STATUS
+AT+CIPSTART="TCP","10.10.10.10",8778
+OK
+CONNECT OK
+AT+CIPSEND
+>{"dev":"STM32_SIM800l","temp":27.0,"lat":54.7279,"lon":20.5368,"sat":7,"alt":71,"spd":0.00,"dir":24.65}
+ 
+SEND OK
+AT+CIPSEND
+>{"dev":"STM32_SIM800l","temp":27.0,"lat":54.7279,"lon":20.5368,"sat":7,"alt":71,"spd":0.00,"dir":24.65}
+ 
+SEND OK
+.
+.
+.
+AT+CIPSEND
+>{"dev":"STM32_SIM800l","temp":27.6,"lat":54.7279,"lon":20.5367,"sat":8,"alt":76,"spd":0.00,"dir":1.28}
+ 
+SEND OK
+at+cipclose
+CLOSE OK
+AT+CIPSHUT
+SHUT OK
+
 at+cusd=1,"*102#"
 OK
 +CUSD: 0, "003200300030002E0030003000200440002E", 72
@@ -136,21 +176,15 @@ Console commands:
 
 ```
 ongps
-19.10 21:29:57 time:193008 date:191121 lat:54.727890 lon:20.536922 sat:6 alt:55.5 spd:0.00 dir:242.86
-19.10 21:29:57 time:193009 date:191121 lat:54.727890 lon:20.536924 sat:6 alt:55.5 spd:0.00 dir:242.86
-19.10 21:29:58 time:193010 date:191121 lat:54.727890 lon:20.536924 sat:6 alt:55.4 spd:0.00 dir:242.86
-19.10 21:29:59 time:193011 date:191121 lat:54.727890 lon:20.536920 sat:6 alt:56.0 spd:0.50 dir:242.86
-19.10 21:30:00 time:193012 date:191121 lat:54.727890 lon:20.536920 sat:6 alt:55.9 spd:0.00 dir:242.86
-19.10 21:30:01 time:193013 date:191121 lat:54.727890 lon:20.536920 sat:6 alt:55.7 spd:0.00 dir:242.86
-19.10 21:30:02 time:193014 date:191121 lat:54.727890 lon:20.536922 sat:6 alt:55.7 spd:0.00 dir:242.86
-19.10 21:30:03 time:193015 date:191121 lat:54.727890 lon:20.536922 sat:6 alt:55.7 spd:0.00 dir:242.86
-19.10 21:30:04 time:193016 date:191121 lat:54.727890 lon:20.536922 sat:6 alt:55.5 spd:0.00 dir:242.86
-19.10 21:30:04 time:193017 date:191121 lat:54.727890 lon:20.536924 sat:6 alt:55.5 spd:0.00 dir:242.86
-19.10 21:30:05 time:193018 date:191121 lat:54.727890 lon:20.536924 sat:6 alt:55.5 spd:0.00 dir:242.86
-19.10 21:30:06 time:193019 date:191121 lat:54.727890 lon:20.536924 sat:6 alt:55.5 spd:0.00 dir:242.86
-19.10 21:30:07 time:193020 date:191121 lat:54.727890 lon:20.536924 sat:6 alt:55.5 spd:0.00 dir:242.86
-19.10 21:30:08 time:193021 date:191121 lat:54.727890 lon:20.536924 sat:6 alt:55.5 spd:0.00 dir:242.86
-19.10 21:30:09 time:193022 date:191121 lat:54.727890 lon:20.536924 sat:6 alt:55.5 spd:0.00 dir:242.86
+21.10 20:14:46 time:181529 date:211121 lat:54.727939 lon:20.536888 sat:7 alt:63.0 spd:0.00 dir:1.28
+21.10 20:14:47 time:181530 date:211121 lat:54.727939 lon:20.536888 sat:7 alt:63.0 spd:0.00 dir:1.28
+21.10 20:14:47 time:181531 date:211121 lat:54.727939 lon:20.536886 sat:7 alt:63.0 spd:0.00 dir:1.28
+21.10 20:14:48 time:181532 date:211121 lat:54.727939 lon:20.536884 sat:7 alt:62.9 spd:0.00 dir:1.28
+21.10 20:14:49 time:181533 date:211121 lat:54.727939 lon:20.536884 sat:7 alt:62.9 spd:0.00 dir:1.28
+21.10 20:14:50 time:181534 date:211121 lat:54.727939 lon:20.536882 sat:7 alt:62.9 spd:0.00 dir:1.28
+21.10 20:14:51 time:181535 date:211121 lat:54.727939 lon:20.536878 sat:7 alt:62.9 spd:0.00 dir:1.28
+21.10 20:14:52 time:181536 date:211121 lat:54.727939 lon:20.536878 sat:7 alt:62.9 spd:0.00 dir:1.28
+21.10 20:14:53 time:181537 date:211121 lat:54.727939 lon:20.536878 sat:7 alt:62.9 spd:0.00 dir:1.28
 .
 .
 .
