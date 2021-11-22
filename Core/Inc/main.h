@@ -82,11 +82,8 @@ enum {
 	devI2C  = 4,
 	devRTC  = 8,
 	devMem  = 0x10,
-	devFifo = 0x20,
-	devCDC  = 0x40,
-	devFs   = 0x80,
-	devGSM  = 0X100,
-	devQue  = 0x200
+	devGSM  = 0X20,
+	devQue  = 0x40
 };
 enum {//INIT COMMANDS NUMBERS
 	iAT = 0,
@@ -229,7 +226,7 @@ enum {
 #define PASSWORD "beeline"
 #define SNTP     "pool.ntp.org"
 #define TZONE    2
-#define SRV_ADR  "37.60.208.11"//"109.111.142.31"//"91.109.152.100"//"91.109.132.11"
+#define SRV_ADR  "185.251.218.16"//"37.60.208.11"//"109.111.142.31"//"91.109.152.100"//"91.109.132.11"
 #define SRV_PORT 8778
 
 
@@ -238,7 +235,8 @@ enum {
 #define min_wait_ms 350
 #define max_wait_ms 750
 
-//#define MAX_SMS_BUF  384
+#define MAX_CMD_BUF  160
+
 #define MAX_FIFO_SIZE 48
 #define MAX_GSM_BUF   512//768
 #define MAX_GPS_BUF   128
@@ -266,7 +264,7 @@ const char *eol;
 uint8_t indList;
 uint16_t freqList[MAX_FREQ_LIST];
 
-//#pragma pack(push,1)
+#pragma pack(push,1)
 typedef struct {
 	unsigned int rdy:1;
 	unsigned int cFun:1;
@@ -291,10 +289,12 @@ typedef struct {
 	unsigned int prompt:1;
 	unsigned int send:1;
 	unsigned int sendOK:1;
+	unsigned int busy:1;
 	unsigned int error:1;
 	unsigned int ok:1;
+	unsigned int none:3;
 } gsmFlags_t;
-//#pragma pack(pop)
+#pragma pack(pop)
 
 #pragma pack(push,1)
 typedef struct {

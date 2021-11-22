@@ -128,13 +128,15 @@ const osMutexAttr_t rtcMutex_attributes = {
 //const char *version = "1.8 (17.11.2021)";
 //const char *version = "1.8.1 (19.11.2021)";
 //const char *version = "1.9 (20.11.2021)";
-const char *version = "1.9.1 (21.11.2021)";
+//const char *version = "1.9.1 (21.11.2021)";
+const char *version = "1.9.2 (22.11.2021)";//minor changes for sending json_data to external tcp server
 
 
-volatile time_t epoch = 1637500605;//1637421807;//1637342030;//1637171390;//1637156150;//1637080774;//1637006802;
+volatile time_t epoch = 1637608799;//1637500605;//1637421807;//1637342030;//1637171390;//1637156150;//1637080774;//1637006802;
 						//1636985372;//1636907840;//1636714630;//1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
 						//1636208753;//1636148268;//1636114042;//1636106564;//1636045527;//1636022804;//1635975820;//1635956750;
 						//1635854199;//1635762840;//1635701599;//1635681180;//1635627245;//1635505880;//1635001599;//1634820289;
+
 uint32_t last_sec;
 int8_t tZone = 2;
 volatile uint32_t cnt_err = 0;
@@ -189,7 +191,7 @@ uint8_t *adrByte = NULL;
 uint8_t devError = 0;
 
 #ifdef SET_STATIC_MEM
-	char PrnBuf[MAX_UART_BUF];// Служебный буфер для функции Report()
+	char PrnBuf[MAX_UART_BUF] = {0};// Служебный буфер для функции Report()
 #endif
 
 UART_HandleTypeDef *portLOG = &huart1;//порт логов (uart)
@@ -226,6 +228,7 @@ volatile bool netInit = false;
 
 char *cmds = NULL;
 char *cusd = NULL;
+char *datas = NULL;
 
 const char *eol = "\r\n";
 
@@ -493,6 +496,7 @@ int main(void)
       Report(NULL, true, "Start application version '%s'\r\n", version);
 
       cmds = (char *)calloc(1, CMD_LEN + 1);
+//      datas = (char *)calloc(1, MAX_CMD_BUF);
 #ifdef SET_SMS
       cusd = (char *)calloc(1, SMS_BUF_LEN);
 
@@ -1059,6 +1063,28 @@ void freeMem(void *mem)
 #endif
 }
 //------------------------------------------------------------------------------------------
+static const char *errNameStr(uint8_t er)
+{
+	switch (er) {
+		case devSPI://  = 1,
+			return "SPI";
+		case devUART:// = 2,
+			return "UART";
+		case devI2C://  = 4,
+			return "I2C";
+		case devRTC://  = 8,
+			return "RTC";
+		case devMem://  = 0x10,
+			return "Mem";
+		case devGSM://  = 0X20,
+			return "GSM";
+		case devQue://  = 0x40
+			return "Que";
+	}
+
+	return "???";
+}
+//------------------------------------------------------------------------------------------
 //             Функция обработки принятых данных с порта логов (portLOG)
 //
 void serialLOG()
@@ -1107,17 +1133,17 @@ void serialLOG()
 		} else if (strstr(RxBuf, _flags)) {
 			if (!prn_flags) prn_flags = true;
 		} else if (strstr(RxBuf, _sntp)) {
-			if (!sntp_flag) sntp_flag = 1;
+			if (!sntp_flag && !gsmFlags.busy) sntp_flag = 1;
 		} else if (strstr(RxBuf, _radio)) {
-			if (!radio_flag) radio_flag = 1;
+			if (!radio_flag && !gsmFlags.busy) radio_flag = 1;
 		} else if (strstr(RxBuf, _rlist)) {
 			if (!prn_rlist) prn_rlist = true;
 		} else if (strstr(RxBuf, _freemem)) {
 			if (!prn_freemem) prn_freemem = true;
 		} else if (strstr(RxBuf, _net)) {
-			if (!net_flag) net_flag = true;
+			if (!net_flag && !gsmFlags.busy) net_flag = true;
 		}  else if (strstr(RxBuf, _ini)) {
-			if (!ini_flag) ini_flag = 1;
+			if (!ini_flag && !gsmFlags.busy) ini_flag = 1;
 		}
 #ifdef SET_GPS
 		else if (strstr(RxBuf, _ongps)) {
@@ -1309,7 +1335,7 @@ void StartDefaultTask(void *argument)
 	char buf[MAX_GSM_BUF] = {0};
 	char buf2[MAX_GSM_BUF] = {0};
 	char scr[MAX_GSM_BUF] = {0};
-	char cmdBuf[128] = {0};
+	char cmdBuf[MAX_CMD_BUF] = {0};
 	int8_t slin = 3, elin = 5, clin = 3, at_line = 2, err_line = 8, temp_line = 6;
 
 
@@ -1397,13 +1423,10 @@ void StartDefaultTask(void *argument)
 				Report(NULL, false, "%s", buf2);
 				//
 				if ((uks = strstr(buf2, "\r\n")) != NULL) *uks = '\0';
-				//
 				result = parseEvent(buf2, (void *)&gsmFlags);
 				//
 				if (gsmFlags.begin) {
-					gsmFlags.begin = 0;
-					//unsigned int *dword = (unsigned int *)&gsmFlags;
-					//*dword = 0;
+					*(unsigned int *)&gsmFlags = 0;
 					gsmFlags.sReady = 1;
 					cur_cmd = grp_cmd = -1;
 					cmd_err = CMD_REPEAT;
@@ -1412,8 +1435,6 @@ void StartDefaultTask(void *argument)
 					at_auto = false;
 					tmr_next = tmr_ack = 0;
 					atTotal = 0;
-					//sch = 0;
-					//dsOK = false;
 					go = false;
 					gsmInit = sntpInit = false;
 					netInit = false;
@@ -1424,28 +1445,34 @@ void StartDefaultTask(void *argument)
 					tmr_cmd = get_tmr(1);
 					cur_sec = get_tmr10(1);
 #ifdef SET_GPS
-					gps_tmr = cur_sec;//get_tmr10(1);
+					gps_tmr = cur_sec;
 #endif
 
 					continue;
 				}
 				//
-				if (gsmFlags.prompt) {
+				if (gsmFlags.prompt) {//send json_data to external tcp server
 					gsmFlags.prompt = 0;
 					uint16_t dln = mkData(cmdBuf);
 					if (dln) {
-						//if (HAL_UART_Transmit_DMA(portGSM, (uint8_t *)cmdBuf, dln) != HAL_OK) devError |= devUART;
-						//																 else Report(NULL, false, "%s", cmdBuf);
-						if (cmds) free(cmds);
-						cmds = (char *)calloc(1, strlen(cmdBuf) + 1);
-						if (cmds) {
-							strcpy(cmds, cmdBuf);
-							if (putRECQ(cmds, &gsmTo) < 0) devError |= devQue;
-							else {
-								Report(NULL, false, cmds);
+						if (HAL_UART_Transmit_DMA(portGSM, (uint8_t *)cmdBuf, dln) != HAL_OK) devError |= devUART;
+						else {
+							gsmFlags.send = 0;
+							Report(NULL, false, "%s", cmdBuf);
+						}
+						/*if (datas) { free(datas); datas = NULL; }
+						char *datas = (char *)calloc(1, MAX_CMD_BUF);
+						if (datas) {
+							strncpy(datas, cmdBuf, MAX_CMD_BUF - 1);
+							if (putRECQ(datas, &gsmTo) < 0) {
+								devError |= devQue;
+								free(datas);
+								datas = NULL;
+							} else {
+								Report(NULL, false, datas);
 								gsmFlags.send = 0;
 							}
-						} else devError |= devMem;
+						} else devError |= devMem;*/
 					}
 				}
 				//
@@ -1509,16 +1536,19 @@ void StartDefaultTask(void *argument)
 				if (gsmFlags.connect) {
 					//
 					//  cmd_send start
-					if (cmds) free(cmds);
+					if (cmds) { free(cmds); cmds = NULL; }
 					cmds = (char *)calloc(1, CMD_LEN + 1);
 					if (cmds) {
 						strcpy(cmds, cmd_any[cCIPSEND].cmd);
-						if (putRECQ(cmds, &gsmTo) < 0) devError |= devQue;
-						else {
-							gsmFlags.send = 1;
+						if (putRECQ(cmds, &gsmTo) < 0) {
+							devError |= devQue;
+							free(cmds);
+							cmds = NULL;
+						} else {
 							Report(NULL, false, cmds);
 						}
 					} else devError |= devMem;
+					gsmFlags.busy = 1;
 					//
 					//
 					tmr_send = get_tmr10(send_period);
@@ -1556,6 +1586,7 @@ void StartDefaultTask(void *argument)
 				go = true;
 			}
 			if (go) {
+				gsmFlags.busy = 1;
 				cmd_err = CMD_REPEAT;
 				tmr_cmd = tmr_ack = 0;
 				at_auto = next_cmd = true;
@@ -1579,6 +1610,7 @@ void StartDefaultTask(void *argument)
 						atTotal = cmd_netMax;
 						cmd_adr = &cmd_net[0].cmd[0];
 					}
+					gsmFlags.busy = 1;
 					tmr_cmd = tmr_ack = 0;
 					at_auto = true;
 					next_cmd = true;
@@ -1595,6 +1627,7 @@ void StartDefaultTask(void *argument)
 					if (next_cmd) {
 						next_cmd = false;
 						cur_cmd++;
+						gsmFlags.busy = 1;
 						switch (grp_cmd) {
 							case seqInit:
 							case seqTime:
@@ -1651,8 +1684,11 @@ void StartDefaultTask(void *argument)
 									cmds = (char *)calloc(1, lens + 1);
 									if (cmds) {
 										strcpy(cmds, uk_cmd);
-										if (putRECQ(cmds, &gsmTo) < 0) devError |= devQue;
-										else {
+										if (putRECQ(cmds, &gsmTo) < 0) {
+											devError |= devQue;
+											free(cmds);
+											cmds = NULL;
+										} else {
 											//if (devError & devQue) devError &= ~ devQue;
 											tmr_ack = get_tmr10(_15s);//wait answer from module 10 sec
 										}
@@ -1674,21 +1710,24 @@ void StartDefaultTask(void *argument)
 									next_cmd = at_auto = false;
 									uk_cmd = uk_ack = NULL;
 									tmr_next = tmr_ack = 0;
-
+									gsmFlags.busy = 0;
 									if (grp_cmd == seqInit) {
 										gsmInit = true;
 										if (!sntpInit) {
 											grp_cmd = seqTime;
 											tmr_cmd = get_tmr(1);
+											//gsmFlags.busy = 1;
 										}
 									} else if (grp_cmd == seqTime) {
 										sntpInit = true;
 										if (!netInit) {
 											grp_cmd = seqNet;
 											tmr_cmd = get_tmr(1);
+											//gsmFlags.busy = 1;
 										}
 									} else if (grp_cmd == seqNet) {
 										netInit = true;
+										//gsmFlags.busy = 1;
 									}
 								}
 							break;
@@ -1720,12 +1759,15 @@ void StartDefaultTask(void *argument)
 			//
 		} else {
 			if (result != -1) {//== cCIPSHUT
-				if (cmds) free(cmds);
+				if (cmds) { free(cmds); cmds = NULL; }
 				cmds = (char *)calloc(1, CMD_LEN + 1);
 				if (cmds) {
 					strcpy(cmds, cmd_any[result].cmd);
-					if (putRECQ(cmds, &gsmTo) < 0) devError |= devQue;
-											  else Report(NULL, false, cmds);
+					if (putRECQ(cmds, &gsmTo) < 0) {
+						devError |= devQue;
+						free(cmds);
+						cmds = NULL;
+					} else Report(NULL, false, cmds);
 				} else devError |= devMem;
 				result = -1;
 			}
@@ -1777,11 +1819,11 @@ void StartDefaultTask(void *argument)
 		//
 		//
 		if (devError) {
-			errLedOn(NULL);
 #ifdef SET_OLED_I2C
-			sprintf(scr, "er: 0x%X", devError);
+			sprintf(scr, "er:%s", errNameStr(devError));
 			i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, err_line, true);
 #endif
+			errLedOn(NULL);
 			devError = 0;
 		}
 		//
@@ -1804,9 +1846,9 @@ void StartDefaultTask(void *argument)
 							s_float_t flo = {0,0};
 							floatPart(GPS.dec_latitude, &flo); sprintf(scr,            "%02lu.%04lu ",  flo.cel, flo.dro / 100);
 							floatPart(GPS.dec_longitude,&flo); sprintf(scr+strlen(scr),"%02lu.%04lu", flo.cel, flo.dro / 100);
-							if (!devError) {
+							/*if (!devError) {
 								floatPart(GPS.msl_altitude,  &flo); sprintf(scr+strlen(scr),"\n sat:%d alt:%lu",GPS.satelites, flo.cel);
-							}
+							}*/
 							i2c_ssd1306_text_xy(scr, 1, cor_line, false);
 							gps_tmr = get_tmr10(_900ms);
 						}

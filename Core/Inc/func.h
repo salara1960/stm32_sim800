@@ -12,9 +12,9 @@
 #define MAX_SQREC 8//64//16
 
 
-#ifdef SET_STATIC_MEM
-	char PrnBuf[MAX_UART_BUF];// Служебный буфер для функции Report()
-#endif
+//#ifdef SET_STATIC_MEM
+//	char PrnBuf[MAX_UART_BUF];// Служебный буфер для функции Report()
+//#endif
 
 //------------------------------------------------------------------------
 

@@ -506,7 +506,7 @@ bool yes = false;
 uint8_t Report(const char *tag, bool addTime, const char *fmt, ...)
 {
 va_list args;
-size_t len = MAX_UART_BUF;
+size_t len = 1024;//MAX_UART_BUF;
 int dl = 0;
 
 
@@ -614,11 +614,11 @@ void prnFlags(void *g)
 	Report(NULL,
 		   true,
 		   "Flags:\n\trdy:%u\n\tcFun:%u\n\tcPin:%u\n\tCallReady:%u\n\tSMSReady:%u\n\tbegin:%u\n\treg:%u\n\tcGat:%u\n\tcmee:%u\n"
-		   "\tcntp:%u\n\tokDT:%u\n\tstate:%s\n\tconnect:%u\n\tfail:%u\n\tclosed:1\n\tshut:%u\n\terror:%u\n\tok:%u\n"
+		   "\tcntp:%u\n\tokDT:%u\n\tstate:%s\n\tconnect:%u\n\tfail:%u\n\tclosed:%u\n\tshut:%u\n\tbusy:%u\n\terror:%u\n\tok:%u\n"
 		   "\tsntpSRV:'%s'\n\tsntpDT:'%s'\n\timei:%s\n\tVcc:%u mv\r\n",
 		   gf->rdy, gf->cFun, gf->cPin, gf->cReady, gf->sReady, gf->begin, gf->reg, gf->cGat, gf->cmee,
 		   gf->tReady, gf->okDT, gsmState[gf->state], gf->connect,
-		   gf->fail, gf->closed, gf->shut, gf->error, gf->ok,
+		   gf->fail, gf->closed, gf->shut, gf->busy, gf->error, gf->ok,
 		   cntpSRV, sntpDT, gsmIMEI, VCC);
 }
 //------------------------------------------------------------------------------------------
@@ -838,7 +838,7 @@ int i, j, k;
 			}
 			break;
 			case _CONNECTOK:
-				gf->connect = 1;
+				gf->connect = gf->busy = 1;
 				gf->send = 0;
 				gf->fail = gf->closed = 0;
 				gf->shut = gf->error = 0;
@@ -858,7 +858,7 @@ int i, j, k;
 			case _SHUTOK:
 				gf->shut = 1;
 				gf->connect = gf->prompt = 0;
-				gf->error = 0;
+				gf->error = gf->busy = 0;
 			break;
 			case _PROMPT:
 				gf->prompt = 1;
