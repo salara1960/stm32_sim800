@@ -62,6 +62,26 @@ float gpsToDec(float deg, char nsew)
 
     return decimal;
 }
+//-----------------------------------------------------------------------------
+uint8_t hexToBin(char *sc)
+{
+char st = 0, ml = 0;
+
+	if ((sc[0] >= '0') && (sc[0] <= '9')) st = (sc[0] - 0x30);
+	else
+	if ((sc[0] >= 'A') && (sc[0] <= 'F')) st = (sc[0] - 0x37);
+	else
+	if ((sc[0] >= 'a') && (sc[0] <= 'f')) st = (sc[0] - 0x57);
+
+	if ((sc[1] >= '0') && (sc[1] <= '9')) ml = (sc[1] - 0x30);
+	else
+	if ((sc[1] >= 'A') && (sc[1] <= 'F')) ml = (sc[1] - 0x37);
+	else
+	if ((sc[1] >= 'a') && (sc[1] <= 'f')) ml = (sc[1] - 0x57);
+
+	return ((st << 4) | (ml & 0x0f));
+
+}
 //----------------------------------------------------------------------------- -u_scanf_float
 bool gpsParse(char *str)
 {
@@ -76,6 +96,28 @@ int8_t idx = -1;
 	}
 
 	if (idx == -1) return ret;
+
+	char sc[2] = {0};
+	uint8_t crc_in = 255, crc_calc = 0;
+	char *uk = strchr(str, '*');
+	if (uk) {
+		memcpy(sc, uk + 1, 2);
+		crc_in = hexToBin(sc);
+		char *us = strchr(str, '$');
+		if (us) {
+			us++;
+			if (uk > us) {
+				while(us < uk) crc_calc ^= *us++;
+			}
+		}
+	}
+	if (crc_in != crc_calc) {
+		devError |= devCRC;
+		//Report(NULL, true, "%02X/%02X : %s\r\n", crc_in, crc_calc, str);
+		return ret;
+	} else {
+		if (devError & devCRC) devError &= ~devCRC;
+	}
 
 	switch (idx) {
 		case ixGNGGA://$GNGGA,163522.000,5443.66276,N,02032.21629,E,1,06,3.1,-5.0,M,0.0,M,,*57

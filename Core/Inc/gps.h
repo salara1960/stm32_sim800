@@ -37,6 +37,8 @@ typedef struct {
     float speed_k;
     float course_d;
     int date;
+    //
+    //unsigned char crc;
     // GLL
 //    char gll_status;
     // VTG - Course over ground, ground speed

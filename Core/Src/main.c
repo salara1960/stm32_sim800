@@ -501,7 +501,6 @@ int main(void)
       Report(NULL, true, "Start application version '%s'\r\n", version);
 
       cmds = (char *)calloc(1, CMD_LEN + 1);
-//      datas = (char *)calloc(1, MAX_CMD_BUF);
 #ifdef SET_SMS
       cusd = (char *)calloc(1, SMS_BUF_LEN);
 
@@ -1072,27 +1071,16 @@ void errNameStr(uint8_t er, char *st)
 {
 	*st = '\0';
 
-	if (er & devSPI) {//case devSPI://  = 1,
-		strcat(st, "SPI");
-	}
-	if (er & devUART) {// = 2,
-		strcat(st, " UART");
-	}
-	if (er & devI2C) {//  = 4,
-		strcat(st, " I2C");
-	}
-	if (er & devRTC) {//  = 8,
-		strcat(st, " RTC");
-	}
-	if (er & devMem) {//  = 0x10,
-		strcat(st, " Mem");
-	}
-	if (er & devGSM) {//  = 0X20,
-		strcat(st, " GSM");
-	}
-	if (er & devQue) {//  = 0x40
-		strcat(st, " Que");
-	}
+	if (er & devSPI)  strcat(st, "SPI");//case devSPI://  = 1,
+	if (er & devUART) strcat(st, " UART");// = 2,
+	if (er & devI2C)  strcat(st, " I2C");//  = 4,
+	if (er & devRTC)  strcat(st, " RTC");//  = 8,
+	if (er & devMem)  strcat(st, " Mem");//  = 0x10,
+	if (er & devGSM)  strcat(st, " GSM");//  = 0X20,
+	if (er & devQue)  strcat(st, " Que");//  = 0x40
+#ifdef SET_GPS
+	if (er & devCRC)  strcat(st, " CRC");//  = 0x80
+#endif
 	if (!strlen(st)) sprintf(st,"err : 0x%02X", er);
 }
 //------------------------------------------------------------------------------------------

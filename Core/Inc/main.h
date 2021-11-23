@@ -84,6 +84,9 @@ enum {
 	devMem  = 0x10,
 	devGSM  = 0X20,
 	devQue  = 0x40
+#ifdef SET_GPS
+	,devCRC = 0x80
+#endif
 };
 enum {//INIT COMMANDS NUMBERS
 	iAT = 0,
@@ -226,7 +229,7 @@ enum {
 #define PASSWORD "beeline"
 #define SNTP     "pool.ntp.org"
 #define TZONE    2
-#define SRV_ADR  "91.109.152.236"//"185.251.218.16"//"37.60.208.11"//"109.111.142.31"//"91.109.152.100"//"91.109.132.11"
+#define SRV_ADR  "213.149.30.207"//"91.109.152.236"//"185.251.218.16"//"37.60.208.11"//"109.111.142.31"//"91.109.152.100"//"91.109.132.11"
 #define SRV_PORT 8778
 
 

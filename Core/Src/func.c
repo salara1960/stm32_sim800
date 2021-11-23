@@ -580,7 +580,7 @@ RTC_TimeTypeDef sTime;
 RTC_DateTypeDef sDate;
 
 	sDate.WeekDay = RTC_WEEKDAY_FRIDAY;
-	sDate.Month   = DT.mon - 1;
+	sDate.Month   = DT.mon;
 	sDate.Date    = DT.day;
 	sDate.Year    = DT.year;
 	sTime.Hours   = DT.hour;// + tZone;
