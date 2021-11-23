@@ -8,7 +8,7 @@
 #define MAX_UART_BUF 928
 
 #define SET_STATIC_MEM
-//#define SET_CALLOC_MEM
+#define SET_CALLOC_MEM
 
 #define SET_OLED_I2C
 

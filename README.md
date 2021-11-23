@@ -59,9 +59,9 @@
 AT-commands example:
 
 ```
-Start application version '1.9.1 (21.11.2021)'
-21.11 15:16:45 [StartDefaultTask] Start main thread...(14952)
-21.11 15:16:45 [StartTemp] Start sensor thread...(14952)
+Start application version '1.9.3 (23.11.2021)'
+23.11 15:12:49 [StartDefaultTask] Start main thread...(12904)
+23.11 15:12:49 [StartTemp] Start sensor thread...(12904)
 RDY
 +CFUN: 1
 +CPIN: READY
@@ -78,7 +78,7 @@ OK
 AT+CMGF=0
 OK
 AT+CBC
-+CBC: 0,74,3994
++CBC: 0,81,4049
 OK
 AT+CNMI=1,2,0,1,0
 OK
@@ -119,8 +119,8 @@ AT+CNTP
 OK
 +CNTP: 1
 AT+CCLK?
-+CCLK: "21/11/21,20:09:59+02"
-Set date/time 21/11/21 20:09:59+02 OK !
++CCLK: "21/11/23,16:16:32+02"
+Set date/time 23/11/21 16:16:32+02 OK !
 OK
 AT+SAPBR=0,1
 OK
@@ -138,29 +138,29 @@ AT+CIPSTATUS
 OK
 STATE: IP GPRSACT
 AT+CIFSR
-10.215.109.252
+10.224.127.127
 AT+CIPSTATUS
 OK
 STATE: IP STATUS
-AT+CIPSTART="TCP","10.10.10.10",8778
+AT+CIPSTART="TCP","91.109.152.236",8778
 OK
 CONNECT OK
 AT+CIPSEND
->{"dev":"STM32_SIM800l","temp":27.0,"lat":54.7279,"lon":20.5368,"sat":7,"alt":71,"spd":0.00,"dir":24.65}
+>{"dev":"STM32_SIM800l","temp":26.75,"lat":54.7277,"lon":20.5368,"sat":7,"alt":33,"spd":0.00,"dir":230.47}
  
 SEND OK
 AT+CIPSEND
->{"dev":"STM32_SIM800l","temp":27.0,"lat":54.7279,"lon":20.5368,"sat":7,"alt":71,"spd":0.00,"dir":24.65}
+>{"dev":"STM32_SIM800l","temp":26.75,"lat":54.7277,"lon":20.5367,"sat":7,"alt":30,"spd":0.00,"dir":230.47}
  
 SEND OK
 .
 .
 .
 AT+CIPSEND
->{"dev":"STM32_SIM800l","temp":27.6,"lat":54.7279,"lon":20.5367,"sat":8,"alt":76,"spd":0.00,"dir":1.28}
+>{"dev":"STM32_SIM800l","temp":26.81,"lat":54.7277,"lon":20.5368,"sat":6,"alt":28,"spd":0.46,"dir":54.40}
  
 SEND OK
-at+cipclose
+AT+CIPCLOSE
 CLOSE OK
 AT+CIPSHUT
 SHUT OK
@@ -176,15 +176,15 @@ Console commands:
 
 ```
 ongps
-21.10 20:14:46 time:181529 date:211121 lat:54.727939 lon:20.536888 sat:7 alt:63.0 spd:0.00 dir:1.28
-21.10 20:14:47 time:181530 date:211121 lat:54.727939 lon:20.536888 sat:7 alt:63.0 spd:0.00 dir:1.28
-21.10 20:14:47 time:181531 date:211121 lat:54.727939 lon:20.536886 sat:7 alt:63.0 spd:0.00 dir:1.28
-21.10 20:14:48 time:181532 date:211121 lat:54.727939 lon:20.536884 sat:7 alt:62.9 spd:0.00 dir:1.28
-21.10 20:14:49 time:181533 date:211121 lat:54.727939 lon:20.536884 sat:7 alt:62.9 spd:0.00 dir:1.28
-21.10 20:14:50 time:181534 date:211121 lat:54.727939 lon:20.536882 sat:7 alt:62.9 spd:0.00 dir:1.28
-21.10 20:14:51 time:181535 date:211121 lat:54.727939 lon:20.536878 sat:7 alt:62.9 spd:0.00 dir:1.28
-21.10 20:14:52 time:181536 date:211121 lat:54.727939 lon:20.536878 sat:7 alt:62.9 spd:0.00 dir:1.28
-21.10 20:14:53 time:181537 date:211121 lat:54.727939 lon:20.536878 sat:7 alt:62.9 spd:0.00 dir:1.28
+23.11 16:17:33 time:141733 date:231121 lat:54.727539 lon:20.536525 sat:6 alt:21.8 spd:3.06 dir:46.41
+23.11 16:17:34 time:141734 date:231121 lat:54.727554 lon:20.536541 sat:6 alt:21.6 spd:3.61 dir:45.06
+23.11 16:17:35 time:141735 date:231121 lat:54.727554 lon:20.536556 sat:6 alt:21.3 spd:3.06 dir:51.11
+23.11 16:17:36 time:141736 date:231121 lat:54.727561 lon:20.536571 sat:6 alt:21.1 spd:3.08 dir:49.34
+23.11 16:17:37 time:141737 date:231121 lat:54.727573 lon:20.536588 sat:6 alt:20.7 spd:3.01 dir:53.13
+23.11 16:17:38 time:141738 date:231121 lat:54.727581 lon:20.536600 sat:6 alt:20.6 spd:3.01 dir:47.36
+23.11 16:17:39 time:141739 date:231121 lat:54.727588 lon:20.536613 sat:6 alt:20.2 spd:3.10 dir:49.43
+23.11 16:17:40 time:141740 date:231121 lat:54.727588 lon:20.536624 sat:6 alt:19.8 spd:2.76 dir:52.47
+23.11 16:17:41 time:141741 date:231121 lat:54.727588 lon:20.536621 sat:6 alt:19.7 spd:0.00 dir:52.47
 .
 .
 .
@@ -202,12 +202,12 @@ OK
 AT+FMFREQ=1025
 OK
 rlist
-19.10 21:31:13 Radio freq_list MHz:[101.8 102.5]
+23.11 16:19:39 Radio freq_list MHz:[101.8 102.5]
 AT+FMCLOSE
 OK
 
 freemem
-19.10 21:32:56 [StartDefaultTask] Free heap memory size 13416
+23.11 16:20:04 [StartDefaultTask] Free heap memory size 13416
 ```
 
 

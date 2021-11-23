@@ -375,7 +375,7 @@ bool os_core = false;
 
 #ifdef USED_FREERTOS
 	if (os_core) {
-		if (osMutexAcquire(rtcMutex, waitRTC) == osOK) {
+		if (osMutexAcquire(rtcMutexHandle, waitRTC) == osOK) {
 	}
 #endif
 		if (HAL_RTC_SetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
@@ -389,7 +389,7 @@ bool os_core = false;
 
 #ifdef USED_FREERTOS
 	if (os_core) {
-			osMutexRelease(rtcMutex);
+			osMutexRelease(rtcMutexHandle);
 		}
 	}
 #endif
@@ -410,7 +410,7 @@ uint32_t get_Date()
 	RTC_TimeTypeDef sTime = {0};
 	RTC_DateTypeDef sDate = {0};
 #ifdef USED_FREERTOS
-	if (osMutexAcquire(rtcMutex, waitRTC) == osOK) {
+	if (osMutexAcquire(rtcMutexHandle, waitRTC) == osOK) {
 #endif
 		if (HAL_RTC_GetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) return get_tmr(0);
 		ts.tm_hour = sTime.Hours;
@@ -423,7 +423,7 @@ uint32_t get_Date()
 		ts.tm_mday = sDate.Date;
 		ts.tm_year = sDate.Year;
 #ifdef USED_FREERTOS
-		osMutexRelease(rtcMutex);
+		osMutexRelease(rtcMutexHandle);
 	}
 #endif
 
@@ -450,7 +450,7 @@ bool yes = false;
 		RTC_TimeTypeDef sTime;
 		RTC_DateTypeDef sDate;
 #ifdef USED_FREERTOS
-		if (osMutexAcquire(rtcMutex, waitRTC) == osOK) {
+		if (osMutexAcquire(rtcMutexHandle, waitRTC) == osOK) {
 #endif
 			if (HAL_RTC_GetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;//errLedOn(__func__);
 			else {
@@ -460,7 +460,7 @@ bool yes = false;
 				}
 			}
 #ifdef USED_FREERTOS
-			osMutexRelease(rtcMutex);
+			osMutexRelease(rtcMutexHandle);
 		}
 #endif
 		if (yes) ret = sprintf(stx, "%02u.%02u %02u:%02u:%02u",
@@ -481,7 +481,7 @@ bool yes = false;
 	RTC_TimeTypeDef sTime;
 	RTC_DateTypeDef sDate;
 #ifdef USED_FREERTOS
-	if (osMutexAcquire(rtcMutex, waitRTC) == osOK) {
+	if (osMutexAcquire(rtcMutexHandle, waitRTC) == osOK) {
 #endif
 		if (HAL_RTC_GetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;//errLedOn(__func__);
 		else {
@@ -492,7 +492,7 @@ bool yes = false;
 			}
 		}
 #ifdef USED_FREERTOS
-		osMutexRelease(rtcMutex);
+		osMutexRelease(rtcMutexHandle);
 	}
 #endif
 	if (yes) ret = sprintf(stx, "%02u.%02u %02u:%02u:%02u ",
@@ -506,7 +506,7 @@ bool yes = false;
 uint8_t Report(const char *tag, bool addTime, const char *fmt, ...)
 {
 va_list args;
-size_t len = 1024;//MAX_UART_BUF;
+size_t len = MAX_UART_BUF;
 int dl = 0;
 
 
@@ -587,7 +587,7 @@ RTC_DateTypeDef sDate;
 	sTime.Minutes = DT.min;
 	sTime.Seconds = DT.sec;
 #ifdef USED_FREERTOS
-	if (osMutexAcquire(rtcMutex, waitRTC) == osOK) {
+	if (osMutexAcquire(rtcMutexHandle, waitRTC) == osOK) {
 #endif
 		if (HAL_RTC_SetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
 		else {
@@ -598,7 +598,7 @@ RTC_DateTypeDef sDate;
 			}
 		}
 #ifdef USED_FREERTOS
-		osMutexRelease(rtcMutex);
+		osMutexRelease(rtcMutexHandle);
 	}
 #endif
 
@@ -842,6 +842,7 @@ int i, j, k;
 				gf->send = 0;
 				gf->fail = gf->closed = 0;
 				gf->shut = gf->error = 0;
+				HAL_GPIO_WritePin(CON_LED_GPIO_Port, CON_LED_Pin, GPIO_PIN_RESET);
 			break;
 			case _CONNECTFAIL:
 				gf->fail = 1;
@@ -859,6 +860,7 @@ int i, j, k;
 				gf->shut = 1;
 				gf->connect = gf->prompt = 0;
 				gf->error = gf->busy = 0;
+				HAL_GPIO_WritePin(CON_LED_GPIO_Port, CON_LED_Pin, GPIO_PIN_SET);
 			break;
 			case _PROMPT:
 				gf->prompt = 1;
@@ -866,6 +868,7 @@ int i, j, k;
 			break;
 			case _SENDOK:
 				gf->sendOK = 1;
+				HAL_GPIO_WritePin(CON_LED_GPIO_Port, CON_LED_Pin, GPIO_PIN_RESET);
 			break;
 			case _ERROR:
 				gf->error = 1;

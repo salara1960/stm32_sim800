@@ -68,25 +68,25 @@ osThreadId_t mainTaskHandle;
 const osThreadAttr_t mainTask_attributes = {
   .name = "mainTask",
   .priority = (osPriority_t) osPriorityNormal2,
-  .stack_size = 1024 * 4//768 * 4//896 * 4
+  .stack_size = 1024 * 4
 };
 /* Definitions for tempTask */
 osThreadId_t tempTaskHandle;
 const osThreadAttr_t tempTask_attributes = {
   .name = "tempTask",
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityNormal1,
   .stack_size = 256 * 4
+};
+/* Definitions for rtcMutex */
+osMutexId_t rtcMutexHandle;
+const osMutexAttr_t rtcMutex_attributes = {
+  .name = "rtcMutex"
 };
 /* Definitions for sem */
 osSemaphoreId_t semHandle;
 const osSemaphoreAttr_t sem_attributes = {
   .name = "sem"
 };
-osMutexId_t rtcMutex;
-const osMutexAttr_t rtcMutex_attributes = {
-  .name = "rtcMutex"
-};
-
 /* USER CODE BEGIN PV */
 //osMutexId_t rtcMutex;
 //const osMutexAttr_t rtcMutex_attributes = {
@@ -129,10 +129,12 @@ const osMutexAttr_t rtcMutex_attributes = {
 //const char *version = "1.8.1 (19.11.2021)";
 //const char *version = "1.9 (20.11.2021)";
 //const char *version = "1.9.1 (21.11.2021)";
-const char *version = "1.9.2 (22.11.2021)";//minor changes for sending json_data to external tcp server
+//const char *version = "1.9.2 (22.11.2021)";//minor changes for sending json_data to external tcp server
+const char *version = "1.9.3 (23.11.2021)";
 
 
-volatile time_t epoch = 1637608799;//1637500605;//1637421807;//1637342030;//1637171390;//1637156150;//1637080774;//1637006802;
+volatile time_t epoch = 1637673169;
+						//1637608799;//1637500605;//1637421807;//1637342030;//1637171390;//1637156150;//1637080774;//1637006802;
 						//1636985372;//1636907840;//1636714630;//1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
 						//1636208753;//1636148268;//1636114042;//1636106564;//1636045527;//1636022804;//1635975820;//1635956750;
 						//1635854199;//1635762840;//1635701599;//1635681180;//1635627245;//1635505880;//1635001599;//1634820289;
@@ -471,12 +473,15 @@ int main(void)
 
       HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
       HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_ERROR_Pin, GPIO_PIN_SET);
+      HAL_GPIO_WritePin(CON_LED_GPIO_Port, CON_LED_Pin, GPIO_PIN_SET);
       HAL_Delay(350);
       HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_ERROR_Pin, GPIO_PIN_RESET);
       HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(CON_LED_GPIO_Port, CON_LED_Pin, GPIO_PIN_RESET);
       HAL_Delay(350);
       HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
       HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_ERROR_Pin, GPIO_PIN_SET);
+      HAL_GPIO_WritePin(CON_LED_GPIO_Port, CON_LED_Pin, GPIO_PIN_SET);
 
 
       // start timer3 in interrupt mode
@@ -517,7 +522,10 @@ int main(void)
   /* USER CODE END 2 */
 
   /* Init scheduler */
-  coreStatus = osKernelInitialize();
+      coreStatus = osKernelInitialize();
+  /* Create the mutex(es) */
+  /* creation of rtcMutex */
+  rtcMutexHandle = osMutexNew(&rtcMutex_attributes);
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
@@ -537,7 +545,7 @@ int main(void)
   		smsSem = osSemaphoreNew(1, 1, &smsSem_attributes);
 	#endif
 #endif
-  		rtcMutex = osMutexNew(&rtcMutex_attributes);
+  		//rtcMutexHandle = osMutexNew(&rtcMutex_attributes);
   /* USER CODE END RTOS_SEMAPHORES */
 
   /* USER CODE BEGIN RTOS_TIMERS */
@@ -568,9 +576,6 @@ int main(void)
   /* Create the thread(s) */
   /* creation of mainTask */
   mainTaskHandle = osThreadNew(StartDefaultTask, NULL, &mainTask_attributes);
-
-  /* creation of gpsTask */
-  //gpsTaskHandle = osThreadNew(StartGps, NULL, &gpsTask_attributes);
 
   /* creation of tempTask */
   tempTaskHandle = osThreadNew(StartTemp, NULL, &tempTask_attributes);
@@ -1006,7 +1011,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(SPI1_NSS_GPIO_Port, SPI1_NSS_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, LED_ERROR_Pin|LED_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, LED_ERROR_Pin|LED_Pin|CON_LED_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(DS18B20_GPIO_Port, DS18B20_Pin, GPIO_PIN_SET);
@@ -1018,8 +1023,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(SPI1_NSS_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : LED_ERROR_Pin LED_Pin */
-  GPIO_InitStruct.Pin = LED_ERROR_Pin|LED_Pin;
+  /*Configure GPIO pins : LED_ERROR_Pin LED_Pin CON_LED_Pin */
+  GPIO_InitStruct.Pin = LED_ERROR_Pin|LED_Pin|CON_LED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1063,26 +1068,32 @@ void freeMem(void *mem)
 #endif
 }
 //------------------------------------------------------------------------------------------
-static const char *errNameStr(uint8_t er)
+void errNameStr(uint8_t er, char *st)
 {
-	switch (er) {
-		case devSPI://  = 1,
-			return "SPI";
-		case devUART:// = 2,
-			return "UART";
-		case devI2C://  = 4,
-			return "I2C";
-		case devRTC://  = 8,
-			return "RTC";
-		case devMem://  = 0x10,
-			return "Mem";
-		case devGSM://  = 0X20,
-			return "GSM";
-		case devQue://  = 0x40
-			return "Que";
-	}
+	*st = '\0';
 
-	return "???";
+	if (er & devSPI) {//case devSPI://  = 1,
+		strcat(st, "SPI");
+	}
+	if (er & devUART) {// = 2,
+		strcat(st, " UART");
+	}
+	if (er & devI2C) {//  = 4,
+		strcat(st, " I2C");
+	}
+	if (er & devRTC) {//  = 8,
+		strcat(st, " RTC");
+	}
+	if (er & devMem) {//  = 0x10,
+		strcat(st, " Mem");
+	}
+	if (er & devGSM) {//  = 0X20,
+		strcat(st, " GSM");
+	}
+	if (er & devQue) {//  = 0x40
+		strcat(st, " Que");
+	}
+	if (!strlen(st)) sprintf(st,"err : 0x%02X", er);
 }
 //------------------------------------------------------------------------------------------
 //             Функция обработки принятых данных с порта логов (portLOG)
@@ -1336,7 +1347,7 @@ void StartDefaultTask(void *argument)
 	char buf2[MAX_GSM_BUF] = {0};
 	char scr[MAX_GSM_BUF] = {0};
 	char cmdBuf[MAX_CMD_BUF] = {0};
-	int8_t slin = 3, elin = 5, clin = 3, at_line = 2, err_line = 8, temp_line = 6;
+	int8_t slin = 3, elin = 4, clin = 3, at_line = 2, err_line = 8, temp_line = 5;
 
 
 	int8_t cur_cmd = -1;
@@ -1355,7 +1366,7 @@ void StartDefaultTask(void *argument)
 	bool go = false;
 #ifdef SET_GPS
 	uint8_t sch = 0;
-	int8_t cor_line = 7;
+	int8_t cor_line = 6;
 	uint32_t gps_tmr = get_tmr10(1);
 #endif
 	uint32_t cur_sec = get_tmr10(1);
@@ -1455,24 +1466,30 @@ void StartDefaultTask(void *argument)
 					gsmFlags.prompt = 0;
 					uint16_t dln = mkData(cmdBuf);
 					if (dln) {
-						if (HAL_UART_Transmit_DMA(portGSM, (uint8_t *)cmdBuf, dln) != HAL_OK) devError |= devUART;
-						else {
+						/**/
+						if (HAL_UART_Transmit_DMA(portGSM, (uint8_t *)cmdBuf, dln) != HAL_OK) {
+							devError |= devUART;
+						} else {
+							HAL_GPIO_WritePin(CON_LED_GPIO_Port, CON_LED_Pin, GPIO_PIN_SET);//off led
 							gsmFlags.send = 0;
 							Report(NULL, false, "%s", cmdBuf);
 						}
-						/*if (datas) { free(datas); datas = NULL; }
-						char *datas = (char *)calloc(1, MAX_CMD_BUF);
-						if (datas) {
-							strncpy(datas, cmdBuf, MAX_CMD_BUF - 1);
-							if (putRECQ(datas, &gsmTo) < 0) {
+						/**/
+						/*
+						//if (cmds) { free(cmds); cmds = NULL; }
+						char *cd = (char *)calloc(1, MAX_CMD_BUF);
+						if (cd) {
+							strncpy(cd, cmdBuf, MAX_CMD_BUF - 1);
+							if (putRECQ(cd, &gsmTo) < 0) {
 								devError |= devQue;
-								free(datas);
-								datas = NULL;
+								free(cd);
+								cd = NULL;
 							} else {
-								Report(NULL, false, datas);
+								Report(NULL, false, cd);
 								gsmFlags.send = 0;
 							}
-						} else devError |= devMem;*/
+						} else devError |= devMem;
+						*/
 					}
 				}
 				//
@@ -1820,7 +1837,8 @@ void StartDefaultTask(void *argument)
 		//
 		if (devError) {
 #ifdef SET_OLED_I2C
-			sprintf(scr, "er:%s", errNameStr(devError));
+			errNameStr(devError, scr);
+			if (strlen(scr) > MAX_FONT_CHAR) scr[MAX_FONT_CHAR] = '\0';
 			i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, err_line, true);
 #endif
 			errLedOn(NULL);
@@ -1844,11 +1862,9 @@ void StartDefaultTask(void *argument)
 								Report(NULL, true, "%s%s", gpsPrint(buf), eol);
 							}
 							s_float_t flo = {0,0};
-							floatPart(GPS.dec_latitude, &flo); sprintf(scr,            "%02lu.%04lu ",  flo.cel, flo.dro / 100);
-							floatPart(GPS.dec_longitude,&flo); sprintf(scr+strlen(scr),"%02lu.%04lu", flo.cel, flo.dro / 100);
-							/*if (!devError) {
-								floatPart(GPS.msl_altitude,  &flo); sprintf(scr+strlen(scr),"\n sat:%d alt:%lu",GPS.satelites, flo.cel);
-							}*/
+							floatPart(GPS.dec_latitude, &flo);  sprintf(scr,            "%02lu.%04lu ",  flo.cel, flo.dro / 100);
+							floatPart(GPS.dec_longitude,&flo);  sprintf(scr+strlen(scr),"%02lu.%04lu", flo.cel, flo.dro / 100);
+							floatPart(GPS.msl_altitude,  &flo); sprintf(scr+strlen(scr),"\n sat:%d alt:%lu",GPS.satelites, flo.cel);
 							i2c_ssd1306_text_xy(scr, 1, cor_line, false);
 							gps_tmr = get_tmr10(_900ms);
 						}

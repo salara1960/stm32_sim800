@@ -226,7 +226,7 @@ enum {
 #define PASSWORD "beeline"
 #define SNTP     "pool.ntp.org"
 #define TZONE    2
-#define SRV_ADR  "185.251.218.16"//"37.60.208.11"//"109.111.142.31"//"91.109.152.100"//"91.109.132.11"
+#define SRV_ADR  "91.109.152.236"//"185.251.218.16"//"37.60.208.11"//"109.111.142.31"//"91.109.152.100"//"91.109.132.11"
 #define SRV_PORT 8778
 
 
@@ -350,6 +350,8 @@ void Error_Handler(void);
 #define GPS_TX_GPIO_Port GPIOA
 #define GPS_RX_Pin GPIO_PIN_12
 #define GPS_RX_GPIO_Port GPIOA
+#define CON_LED_Pin GPIO_PIN_9
+#define CON_LED_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 #define W25_CS_GPIO_Port SPI1_NSS_GPIO_Port
@@ -365,7 +367,7 @@ void Error_Handler(void);
 
 #ifdef USED_FREERTOS
 	osSemaphoreId_t semHandle;
-	osMutexId_t rtcMutex;
+	osMutexId_t rtcMutexHandle;
 #endif
 
 volatile bool setDate;
