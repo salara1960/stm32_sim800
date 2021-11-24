@@ -157,8 +157,11 @@ char *gpsPrint(char *str)
 	if (str) {
 #ifdef SET_FLOAT_PART
 		s_float_t flo = {0,0};
-		floatPart(GPS.utc_time, &flo);      sprintf(str, "time:%06lu", flo.cel);
-		sprintf(str+strlen(str), " date:%06d", GPS.date);
+		char tmp[8] = {0};
+		sprintf(tmp, "%06d", GPS.date);
+		sprintf(str, "date:%.*s/%.*s/%.*s", 2, &tmp[0], 2, &tmp[2], 2, &tmp[4]);
+		floatPart(GPS.utc_time, &flo); sprintf(tmp, "%06lu", flo.cel);
+		sprintf(str+strlen(str), " time:%.*s:%.*s:%.*s", 2, &tmp[0], 2, &tmp[2], 2, &tmp[4]);
 		floatPart(GPS.dec_latitude, &flo);  sprintf(str+strlen(str), " lat:%lu.%lu", flo.cel, flo.dro);
 		floatPart(GPS.dec_longitude, &flo); sprintf(str+strlen(str), " lon:%lu.%lu sat:%d", flo.cel, flo.dro, GPS.satelites);
 		floatPart(GPS.msl_altitude, &flo);  sprintf(str+strlen(str), " alt:%lu.%01lu", flo.cel, flo.dro/100000);

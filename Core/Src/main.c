@@ -130,10 +130,11 @@ const osSemaphoreAttr_t sem_attributes = {
 //const char *version = "1.9 (20.11.2021)";
 //const char *version = "1.9.1 (21.11.2021)";
 //const char *version = "1.9.2 (22.11.2021)";//minor changes for sending json_data to external tcp server
-const char *version = "1.9.3 (23.11.2021)";
+//const char *version = "1.9.3 (23.11.2021)";
+const char *version = "1.9.4 (24.11.2021)"; //minor chages in +cusd parser and add commands via local channel (uart)
 
 
-volatile time_t epoch = 1637673169;
+volatile time_t epoch = 1637768795;//1637673169;
 						//1637608799;//1637500605;//1637421807;//1637342030;//1637171390;//1637156150;//1637080774;//1637006802;
 						//1636985372;//1636907840;//1636714630;//1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
 						//1636208753;//1636148268;//1636114042;//1636106564;//1636045527;//1636022804;//1635975820;//1635956750;
@@ -159,9 +160,11 @@ const char *_flags = "flags";
 const char *_freemem = "freemem";
 const char *_net  = "net";
 const char *_ini  = "ini";
+const char *_stop  = "stop";
 volatile bool prn_flags = false;
 volatile bool prn_freemem = false;
 volatile bool net_flag = false;
+volatile bool prn_cmd = true;
 volatile uint32_t extDate = 0;
 static char RxBuf[MAX_UART_BUF] = {0};// Буфер для приёма данных из порта portLOG
 uint8_t rx_uk;
@@ -324,7 +327,7 @@ const ats_t cmd_radio[cmd_radioMax] = {
 		{"AT+FMFREQ=","OK"}//,//1025 ; установить чатоту 102.5 Мгц | 1025 + eol
 		//{"AT+FMCLOSE\r\n","OK"}
 };
-//const int8_t cmd_anyMax = 10;
+//const int8_t cmd_anyMax = 11;
 const ats_t cmd_any[cmd_anyMax] = {
 		{"AT+CUSD=1,","OK"},//"#102#"" | "#102#" + eol    | +CUSD: 0, " Vash balans 200.00 r.", 15
 		{"AT+CCID\r\n","OK"},//8970199181027011035f
@@ -335,7 +338,8 @@ const ats_t cmd_any[cmd_anyMax] = {
 		{"AT+CCLK?\r\n","OK"},//+CCLK: "21/11/01,12:49:31+02"
 		{"AT+CIPCLOSE\r\n","CLOSE OK"},
 		{"AT+CIPSHUT\r\n","SHUT OK"},
-		{"AT+CIPSEND\r\n",">"}//send data after '>'
+		{"AT+CIPSEND\r\n",">"},//send data after '>'
+		{"AT+FMCLOSE\r\n","OK"}
 };
 //------------   События от GSM модуля   ------------------
 //const int8_t gsmEventMax = 26;
@@ -1088,8 +1092,14 @@ void errNameStr(uint8_t er, char *st)
 //
 void serialLOG()
 {
-	RxBuf[rx_uk & 0xff] = (char)uRxByte;
+
+	if (uRxByte != BACK_SPACE)
+		RxBuf[rx_uk & 0xff] = (char)uRxByte;
+	else
+		if (rx_uk) rx_uk--;
+
 	if (uRxByte == 0x0a) {//end of line
+		bool mk_at = false;
 		char *uk = strstr(RxBuf, _extDate);//const char *_extDate = "epoch=";
 		if (uk) {
 			uk += strlen(_extDate);
@@ -1117,17 +1127,8 @@ void serialLOG()
 				}
 				//strncpy(tmp_RxBuf, RxBuf, sizeof(tmp_RxBuf) - 1);
 				strcat(RxBuf, eol);
-				char *to = (char *)calloc(1, strlen(RxBuf) + 1);
-				if (to) {
-					strcpy(to, RxBuf);
-					toUppers(to);
-					if (putRECQ(to, &gsmTo) < 0) {
-						devError |= devQue;
-						free(to);
-					} else {
-						//if (devError & devQue) devError &= ~devQue;
-					}
-				} else devError |= devMem;
+				prn_cmd = false;
+				mk_at = true;
 			}
 		} else if (strstr(RxBuf, _flags)) {
 			if (!prn_flags) prn_flags = true;
@@ -1141,8 +1142,13 @@ void serialLOG()
 			if (!prn_freemem) prn_freemem = true;
 		} else if (strstr(RxBuf, _net)) {
 			if (!net_flag && !gsmFlags.busy) net_flag = true;
-		}  else if (strstr(RxBuf, _ini)) {
+		} else if (strstr(RxBuf, _ini)) {
 			if (!ini_flag && !gsmFlags.busy) ini_flag = 1;
+		} else if (strstr(RxBuf, _stop)) {
+			if (gsmFlags.connect) strcpy(RxBuf, cmd_any[cCLOSE].cmd);
+			                 else strcpy(RxBuf, cmd_any[cFMCLOSE].cmd);
+			prn_cmd = true;
+			mk_at = true;
 		}
 #ifdef SET_GPS
 		else if (strstr(RxBuf, _ongps)) {
@@ -1151,6 +1157,21 @@ void serialLOG()
 			if (prnGpsFlag) prnGpsFlag = false;
 		}
 #endif
+		//
+		if (mk_at) {
+			char *to = (char *)calloc(1, strlen(RxBuf) + 1);
+			if (to) {
+				strcpy(to, RxBuf);
+				toUppers(to);
+				if (putRECQ(to, &gsmTo) < 0) {
+					devError |= devQue;
+					free(to);
+				} else {
+					if (devError & devQue) devError &= ~devQue;
+				}
+			} else devError |= devMem;
+		}
+		//
 		rx_uk = 0; memset(RxBuf, 0, sizeof(RxBuf));
 	} else rx_uk++;
 
@@ -1400,6 +1421,7 @@ void StartDefaultTask(void *argument)
 						memset((uint8_t *)&freqList, 0, MAX_FREQ_LIST * sizeof(uint16_t));
 					}
 				}
+				if (prn_cmd) Report(NULL, false, "%s", buf);
 #ifdef SET_OLED_I2C
 				i2c_ssd1306_clear_line(at_line);
 				if (strlen(buf) > MAX_FONT_CHAR) buf[MAX_FONT_CHAR] = '\0';
@@ -1550,7 +1572,8 @@ void StartDefaultTask(void *argument)
 							free(cmds);
 							cmds = NULL;
 						} else {
-							Report(NULL, false, cmds);
+							prn_cmd = true;
+							//Report(NULL, false, cmds);
 						}
 					} else devError |= devMem;
 					gsmFlags.busy = 1;
@@ -1708,7 +1731,8 @@ void StartDefaultTask(void *argument)
 										uk_cmd = uk_ack = NULL;
 										tmr_next = tmr_ack = 0;
 									}
-									Report(NULL, false, uk_cmd);
+									prn_cmd = true;
+									//Report(NULL, false, uk_cmd);
 								} else {
 									cmd_err = CMD_REPEAT;
 									cur_cmd = -1;
@@ -1772,7 +1796,7 @@ void StartDefaultTask(void *argument)
 						devError |= devQue;
 						free(cmds);
 						cmds = NULL;
-					} else Report(NULL, false, cmds);
+					} else prn_cmd = true;//Report(NULL, false, cmds);
 				} else devError |= devMem;
 				result = -1;
 			}
@@ -1854,7 +1878,7 @@ void StartDefaultTask(void *argument)
 							floatPart(GPS.dec_longitude,&flo);  sprintf(scr+strlen(scr),"%02lu.%04lu", flo.cel, flo.dro / 100);
 							floatPart(GPS.msl_altitude,  &flo); sprintf(scr+strlen(scr),"\n sat:%d alt:%lu",GPS.satelites, flo.cel);
 							i2c_ssd1306_text_xy(scr, 1, cor_line, false);
-							gps_tmr = get_tmr10(_900ms);
+							gps_tmr = get_tmr10(_950ms);
 						}
 					}
 				}

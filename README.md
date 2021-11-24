@@ -42,7 +42,7 @@
   - GPIO : three LEDs are used: PB0,PB9,PB10, one pin (PA0 with button) reset sim800l, pin PB12 - for working sensor DS18B20
   - I2C1 : master mode with a frequency of 400KHz (the bus serves ssd1306).
   - USART1 : parameters of port 115200 8N1 (transmit data with DMA) - a port for logging and receive any commands for control device.
-  - USART2 : parameters of port 115200 8N1 (transmit data with DMA)- a port for send AT command to SIM800l module.
+  - USART2 : parameters of port 115200 8N1 (transmit data with DMA) - a port for send AT command to SIM800l module.
   - USART6 : parameters of port 9600 8N1 - the port for receive NMEA data from GPS module ATGM332D.
   - TIM3 : Timer 10 ms. and 1 second, implemented in the callback function.
   - TIM10 : Timer 1 us., for working temperature sensor DS18B20.
@@ -176,15 +176,18 @@ Console commands:
 
 ```
 ongps
-23.11 16:17:33 time:141733 date:231121 lat:54.727539 lon:20.536525 sat:6 alt:21.8 spd:3.06 dir:46.41
-23.11 16:17:34 time:141734 date:231121 lat:54.727554 lon:20.536541 sat:6 alt:21.6 spd:3.61 dir:45.06
-23.11 16:17:35 time:141735 date:231121 lat:54.727554 lon:20.536556 sat:6 alt:21.3 spd:3.06 dir:51.11
-23.11 16:17:36 time:141736 date:231121 lat:54.727561 lon:20.536571 sat:6 alt:21.1 spd:3.08 dir:49.34
-23.11 16:17:37 time:141737 date:231121 lat:54.727573 lon:20.536588 sat:6 alt:20.7 spd:3.01 dir:53.13
-23.11 16:17:38 time:141738 date:231121 lat:54.727581 lon:20.536600 sat:6 alt:20.6 spd:3.01 dir:47.36
-23.11 16:17:39 time:141739 date:231121 lat:54.727588 lon:20.536613 sat:6 alt:20.2 spd:3.10 dir:49.43
-23.11 16:17:40 time:141740 date:231121 lat:54.727588 lon:20.536624 sat:6 alt:19.8 spd:2.76 dir:52.47
-23.11 16:17:41 time:141741 date:231121 lat:54.727588 lon:20.536621 sat:6 alt:19.7 spd:0.00 dir:52.47
+24.11 20:29:19 date:24/11/21 time:18:29:31 lat:54.728004 lon:20.536973 sat:9 alt:12.3 spd:1.30 dir:11.30
+24.11 20:29:20 date:24/11/21 time:18:29:32 lat:54.728004 lon:20.536964 sat:9 alt:12.3 spd:0.86 dir:11.30
+24.11 20:29:21 date:24/11/21 time:18:29:33 lat:54.728004 lon:20.536964 sat:9 alt:12.3 spd:0.00 dir:11.30
+24.11 20:29:22 date:24/11/21 time:18:29:34 lat:54.728004 lon:20.536964 sat:9 alt:12.1 spd:0.00 dir:11.30
+24.11 20:29:23 date:24/11/21 time:18:29:35 lat:54.727993 lon:20.536964 sat:9 alt:12.1 spd:0.00 dir:11.30
+24.11 20:29:23 date:24/11/21 time:18:29:36 lat:54.727993 lon:20.536964 sat:9 alt:12.1 spd:0.00 dir:11.30
+24.11 20:29:24 date:24/11/21 time:18:29:37 lat:54.727993 lon:20.536964 sat:9 alt:12.1 spd:0.00 dir:11.30
+24.11 20:29:25 date:24/11/21 time:18:29:38 lat:54.727993 lon:20.536962 sat:9 alt:12.1 spd:0.00 dir:11.30
+24.11 20:29:26 date:24/11/21 time:18:29:39 lat:54.727993 lon:20.536960 sat:9 alt:12.1 spd:0.00 dir:11.30
+24.11 20:29:27 date:24/11/21 time:18:29:40 lat:54.727993 lon:20.536958 sat:9 alt:12.1 spd:0.00 dir:11.30
+24.11 20:29:28 date:24/11/21 time:18:29:41 lat:54.727993 lon:20.536958 sat:9 alt:12.1 spd:0.00 dir:11.30
+24.11 20:29:29 date:24/11/21 time:18:29:42 lat:54.727985 lon:20.536956 sat:9 alt:12.1 spd:0.00 dir:11.30
 .
 .
 .

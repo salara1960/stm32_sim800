@@ -793,22 +793,17 @@ int i, j, k;
 			break;
 			case _CUSD://"+CUSD: ",//+CUSD: 0, "003200300030002E003000300020 .... 340023", 72
 #ifdef SET_SMS
-				if (cusd) {
-					free(cusd);
-					cusd = NULL;
-				}
-				cusd = (char *)calloc(1, SMS_BUF_LEN);
-				if (cusd) {
-					uks += 4;//uk to begin ucs2 string
-					char *uke = strstr(uks, "\", 72");
-					if (uke) {
+				uks += 4;//uk to begin ucs2 string
+				char *uke = strstr(uks, "\", 72");
+				if (uke) {
+					if (!cusd) cusd = (char *)calloc(1, SMS_BUF_LEN);
+					if (cusd) {
 						memset(SMS_text, 0, SMS_BUF_LEN);
 						memset(cusd, 0, SMS_BUF_LEN);
 						memcpy(cusd, uks, uke - uks);
 						if (ucs2_to_utf8(cusd, NULL, (uint8_t *)SMS_text)) Report(NULL, false, "%s\r\n", SMS_text);
-					}
-					free(cusd); cusd = NULL;
-				} else devError |= devMem;
+					} else devError |= devMem;
+				}
 #endif
 			break;
 			case _CMT:

@@ -148,7 +148,8 @@ enum {
 	cCCLK,
 	cCLOSE,
 	cCIPSHUT,
-	cCIPSEND
+	cCIPSEND,
+	cFMCLOSE
 };
 enum {
 	_RDY = 0,
@@ -229,11 +230,13 @@ enum {
 #define PASSWORD "beeline"
 #define SNTP     "pool.ntp.org"
 #define TZONE    2
-#define SRV_ADR  "213.149.30.207"//"91.109.152.236"//"185.251.218.16"//"37.60.208.11"//"109.111.142.31"//"91.109.152.100"//"91.109.132.11"
+#define SRV_ADR  "91.109.136.149"//"213.149.30.207"
+//"91.109.152.236"//"185.251.218.16"//"37.60.208.11"//"109.111.142.31"//"91.109.152.100"//"91.109.132.11"
 #define SRV_PORT 8778
 
 
 #define CTRL_Z 0x1a
+#define BACK_SPACE 8
 
 #define min_wait_ms 350
 #define max_wait_ms 750
@@ -388,7 +391,7 @@ TIM_HandleTypeDef *tmrDS18B20;
 #define cmd_timeMax   8
 #define cmd_netMax    8//11
 #define cmd_radioMax  4//5
-#define cmd_anyMax   10//9
+#define cmd_anyMax   11//10//9
 #define gsmEventMax  26//25//24//23//21
 #define gsmStateMax   6//4
 
