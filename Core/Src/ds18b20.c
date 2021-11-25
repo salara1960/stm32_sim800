@@ -22,9 +22,6 @@ uint8_t 	TempSensorCount = 0;
 uint8_t		Ds18b20StartConvert = 0;
 uint16_t	Ds18b20Timeout = 0;
 
-//	osThreadId 	Ds18b20Handle;
-//	void Task_Ds18b20(void const * argument);
-
 float fTemp = 0.0;
 bool sensPresent = false;
 
@@ -33,6 +30,7 @@ bool sensPresent = false;
 void ONEWIRE_DELAY(uint16_t time_us)
 {
 	tmrDS18B20->Instance->CNT = 0;
+
 	while (tmrDS18B20->Instance->CNT <= time_us);
 }
 //----------------------------------------------------------------------------------
@@ -98,12 +96,12 @@ inline uint8_t OneWire_Reset(OneWire_t* OneWireStruct)
 
 	// Delay for 410 us
 	ONEWIRE_DELAY(410);
-	// Return value of presence pulse, 0 = OK, 1 = ERROR
 
+	// Return value of presence pulse, 0 = OK, 1 = ERROR
 	return i;
 }
 //----------------------------------------------------------------------------------
-inline void OneWire_WriteBit(OneWire_t* OneWireStruct, uint8_t bit)
+inline void OneWire_WriteBit(OneWire_t *OneWireStruct, uint8_t bit)
 {
 	if (bit) {
 		// Set line low
@@ -133,7 +131,7 @@ inline void OneWire_WriteBit(OneWire_t* OneWireStruct, uint8_t bit)
 
 }
 //----------------------------------------------------------------------------------
-inline uint8_t OneWire_ReadBit(OneWire_t* OneWireStruct)
+inline uint8_t OneWire_ReadBit(OneWire_t *OneWireStruct)
 {
 uint8_t bit = 0;
 
@@ -153,11 +151,10 @@ uint8_t bit = 0;
 	ONEWIRE_DELAY(50);
 
 	// Return bit value
-
 	return bit;
 }
 //----------------------------------------------------------------------------------
-void OneWire_WriteByte(OneWire_t* OneWireStruct, uint8_t byte)
+void OneWire_WriteByte(OneWire_t *OneWireStruct, uint8_t byte)
 {
 uint8_t i = 8;
 
@@ -303,7 +300,7 @@ uint8_t rom_byte_mask = 1, search_direction;
 int OneWire_Verify(OneWire_t *OneWireStruct)
 {
 unsigned char rom_backup[8];
-int i,rslt,ld_backup,ldf_backup,lfd_backup;
+int i, rslt, ld_backup, ldf_backup, lfd_backup;
 
 	// keep a backup copy of the current state
 	for (i = 0; i < 8; i++) rom_backup[i] = OneWireStruct->ROM_NO[i];
@@ -407,52 +404,7 @@ uint8_t crc = 0, inbyte, i, mix;
 	return crc;
 }
 //----------------------------------------------------------------------------------
-//----------------------------------------------------------------------------------
-//----------------------------------------------------------------------------------
-/*
-#if (_DS18B20_USE_FREERTOS==1)
-void	Ds18b20_Init(osPriority Priority)
-{
-	osThreadDef(myTask_Ds18b20, Task_Ds18b20, Priority, 0, 128);
-  Ds18b20Handle = osThreadCreate(osThread(myTask_Ds18b20), NULL);
-}
-#else
-bool	Ds18b20_Init(void)
-{
-	uint8_t	Ds18b20TryToFind=5;
-	do
-	{
-		OneWire_Init(&OneWire,_DS18B20_GPIO ,_DS18B20_PIN);
-		TempSensorCount = 0;
-		while(HAL_GetTick() < 3000)
-			Ds18b20Delay(100);
-		OneWireDevices = OneWire_First(&OneWire);
-		while (OneWireDevices)
-		{
-			Ds18b20Delay(100);
-			TempSensorCount++;
-			OneWire_GetFullROM(&OneWire, ds18b20[TempSensorCount-1].Address);
-			OneWireDevices = OneWire_Next(&OneWire);
-		}
-		if(TempSensorCount>0)
-			break;
-		Ds18b20TryToFind--;
-	}while(Ds18b20TryToFind>0);
-	if(Ds18b20TryToFind==0)
-		return false;
-	for (uint8_t i = 0; i < TempSensorCount; i++)
-	{
-		Ds18b20Delay(50);
-    DS18B20_SetResolution(&OneWire, ds18b20[i].Address, DS18B20_Resolution_12bits);
-		Ds18b20Delay(50);
-    DS18B20_DisableAlarmTemperature(&OneWire,  ds18b20[i].Address);
-  }
-	return true;
-}
-#endif
-*/
-//----------------------------------------------------------------------------------
-bool	Ds18b20_ManualConvert(void)
+bool Ds18b20_ManualConvert(void)
 {
 	Ds18b20StartConvert = 1;
 
@@ -463,9 +415,7 @@ bool	Ds18b20_ManualConvert(void)
 //----------------------------------------------------------------------------------
 uint8_t DS18B20_Start(OneWire_t *OneWire, uint8_t *ROM)
 {
-	// Check if device is DS18B20
 	if (!DS18B20_Is(ROM)) return 0;
-
 
 	OneWire_Reset(OneWire);// Reset line
 
@@ -493,16 +443,14 @@ uint16_t temperature;
 uint8_t resolution;
 int8_t digit, minus = 0;
 float decimal;
-uint8_t i = 0;
+uint8_t i;
 uint8_t data[9];
-uint8_t crc;
 
 
-	if (!DS18B20_Is(ROM)) return false;// Check if device is DS18B20
+	if (!DS18B20_Is(ROM)) return false;
 
 	// Check if line is released, if it is, then conversion is complete
 	if (!OneWire_ReadBit(OneWire)) return false;// Conversion is not finished yet
-
 
 
 	OneWire_Reset(OneWire);// Reset line
@@ -514,7 +462,7 @@ uint8_t crc;
 	// Get data
 	for (i = 0; i < 9; i++) data[i] = OneWire_ReadByte(OneWire);// Read byte by byte
 
-	crc = OneWire_CRC8(data, 8);// Calculate CRC
+	uint8_t crc = OneWire_CRC8(data, 8);// Calculate CRC
 
 	// Check if CRC is ok
 	if (crc != data[8]) return 0;// CRC invalid
@@ -572,7 +520,7 @@ uint8_t crc;
 	return true;// Return 1, temperature valid
 }
 //----------------------------------------------------------------------------------
-uint8_t DS18B20_GetResolution(OneWire_t* OneWire, uint8_t *ROM)
+uint8_t DS18B20_GetResolution(OneWire_t *OneWire, uint8_t *ROM)
 {
 uint8_t conf;
 
@@ -643,7 +591,6 @@ uint8_t DS18B20_SetResolution(OneWire_t *OneWire, uint8_t *ROM, DS18B20_Resoluti
 	OneWire_WriteByte(OneWire, th);
 	OneWire_WriteByte(OneWire, tl);
 	OneWire_WriteByte(OneWire, conf);
-
 
 	OneWire_Reset(OneWire);// Reset line
 
@@ -795,7 +742,6 @@ uint8_t DS18B20_AllDone(OneWire_t *OneWire)
 	// If read bit is low, then device is not finished yet with calculation temperature
 	return OneWire_ReadBit(OneWire);
 }
-//----------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------
 
 //*******************************************************************************************

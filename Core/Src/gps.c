@@ -8,9 +8,10 @@
 #ifdef SET_GPS
 //-----------------------------------------------------------------------------
 
-gps_t GPS;
+gps_t GPS;// структура для данных геолокации
 
-const char *nmea[] = {
+
+const char *nmea[] = {// cимвольные маркеры NMEA сообщений, которые будут анализироваться
 		"$GNGGA",
 		"$GNRMC"
 		//"$GNGLL",
@@ -18,7 +19,8 @@ const char *nmea[] = {
 };
 
 //-----------------------------------------------------------------------------
-
+//  Функция проверяет на валидность строку на соответствие NMEA формату
+//
 int gpsValidate(char *str)
 {
 char check[3] = {0};
@@ -52,6 +54,8 @@ int calcCRC = 0;
     return 0;
 }
 //-----------------------------------------------------------------------------
+//            Пересчет данных геолокации в градусы
+//
 float gpsToDec(float deg, char nsew)
 {
     int degree = (int)(deg / 100);
@@ -63,6 +67,8 @@ float gpsToDec(float deg, char nsew)
     return decimal;
 }
 //-----------------------------------------------------------------------------
+//      Преобразует два символа строки из hex-формата в двоичный
+//
 uint8_t hexToBin(char *sc)
 {
 char st = 0, ml = 0;
@@ -83,6 +89,8 @@ char st = 0, ml = 0;
 
 }
 //----------------------------------------------------------------------------- -u_scanf_float
+//   Парсер валидных NMEA сообщений и заполнение структуры данными геолокации
+//
 bool gpsParse(char *str)
 {
 bool ret = false;
@@ -97,6 +105,7 @@ int8_t idx = -1;
 
 	if (idx == -1) return ret;
 
+	//  Подсчет контрольной суммы NMEA сообщения
 	char sc[2] = {0};
 	uint8_t crc_in = 255, crc_calc = 0;
 	char *uk = strchr(str, '*');
@@ -111,21 +120,20 @@ int8_t idx = -1;
 			}
 		}
 	}
+	//  Проверка контрольной суммы
 	if (crc_in != crc_calc) {
 		devError |= devCRC;
-		//Report(NULL, true, "%02X/%02X : %s\r\n", crc_in, crc_calc, str);
 		return ret;
 	} else {
 		if (devError & devCRC) devError &= ~devCRC;
 	}
 
+	//  Собственно парсер данных геолокации
 	switch (idx) {
 		case ixGNGGA://$GNGGA,163522.000,5443.66276,N,02032.21629,E,1,06,3.1,-5.0,M,0.0,M,,*57
 			if (sscanf(str, "$GNGGA,%f,%f,%c,%f,%c,%d,%d,%f,%f,%c",
 					&GPS.utc_time, &GPS.nmea_latitude, &GPS.ns, &GPS.nmea_longitude, &GPS.ew,
 					&GPS.lock, &GPS.satelites, &GPS.hdop, &GPS.msl_altitude, &GPS.msl_units) >= 9) {
-    					//GPS.dec_latitude  = gpsToDec(GPS.nmea_latitude,  GPS.ns);
-    					//GPS.dec_longitude = gpsToDec(GPS.nmea_longitude, GPS.ew);
     					ret = true;
 			}
 		break;
@@ -152,6 +160,9 @@ int8_t idx = -1;
     return ret;
 }
 //-----------------------------------------------------------------------------
+//        Функция формирует символьную строку с данными геолокации
+// с использованием функции разделения целой и дробной частей числа типа float
+//
 char *gpsPrint(char *str)
 {
 	if (str) {

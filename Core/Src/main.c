@@ -131,25 +131,30 @@ const osSemaphoreAttr_t sem_attributes = {
 //const char *version = "1.9.1 (21.11.2021)";
 //const char *version = "1.9.2 (22.11.2021)";//minor changes for sending json_data to external tcp server
 //const char *version = "1.9.3 (23.11.2021)";
-const char *version = "1.9.4 (24.11.2021)"; //minor chages in +cusd parser and add commands via local channel (uart)
+//const char *version = "1.9.4 (24.11.2021)"; //minor changes in +cusd parser and add local commands (via uart)
+const char *version = "1.9.5 (25.11.2021)";
 
 
-volatile time_t epoch = 1637768795;//1637673169;
+volatile time_t epoch = 1637870245;//1637768795;//1637673169;
 						//1637608799;//1637500605;//1637421807;//1637342030;//1637171390;//1637156150;//1637080774;//1637006802;
 						//1636985372;//1636907840;//1636714630;//1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
 						//1636208753;//1636148268;//1636114042;//1636106564;//1636045527;//1636022804;//1635975820;//1635956750;
 						//1635854199;//1635762840;//1635701599;//1635681180;//1635627245;//1635505880;//1635001599;//1634820289;
 
-uint32_t last_sec;
-int8_t tZone = 2;
+int8_t tZone = 2;	// time zone when set date/time
 volatile uint32_t cnt_err = 0;
+//     Флаги событий
 volatile uint8_t restart_flag = 0;
 volatile uint8_t sntp_flag = 0;
 volatile uint8_t ini_flag = 0;
 volatile uint8_t radio_flag = 0;
+//     Переменные для таймера (период 10 мсек)
 volatile uint32_t secCounter = 0;
 volatile uint32_t HalfSecCounter = 0;
-volatile bool setDate = false;
+//
+volatile uint32_t extDate = 0;//unix timestamp
+volatile bool setDate = false; //флаг установки даты и времени
+//     шаблоны команд локального канала управления (uart)
 const char *_extDate = "epoch=";
 const char *_restart = "restart";
 const char *_sntp = "sntp";
@@ -161,21 +166,23 @@ const char *_freemem = "freemem";
 const char *_net  = "net";
 const char *_ini  = "ini";
 const char *_stop  = "stop";
+//     флаги команд локального канала управления (uart)
 volatile bool prn_flags = false;
 volatile bool prn_freemem = false;
 volatile bool net_flag = false;
 volatile bool prn_cmd = true;
-volatile uint32_t extDate = 0;
+//     Служебные переменные для для локального канала управления (uart)
 static char RxBuf[MAX_UART_BUF] = {0};// Буфер для приёма данных из порта portLOG
 uint8_t rx_uk;
 uint8_t uRxByte = 0;
 uint8_t uartRdy = 1;
+//     Служебные переменные для для канала управления GSM модулем (uart)
 static char gsmBuf[MAX_GSM_BUF] = {0};// Буфер для приёма данных из порта portGSM
 uint16_t gsm_uk;
 uint8_t gsmByte = 0;
 uint8_t gsmRdy = 1;
 uint8_t adone = 0;
-
+//     Служебные переменные для для канала приема данных от модуля GPS (uart)
 #ifdef SET_GPS
 	UART_HandleTypeDef *portGPS = &huart6;//порт GPS модуля (ATGM332D)
 	static char gpsBuf[MAX_GPS_BUF] = {0};// Буфер для приёма данных из порта portGPS
@@ -187,18 +194,20 @@ uint8_t adone = 0;
 	bool gpsFromFlag = false;
 	gsmFlags_t gpsFlags = {0};
 	bool prnGpsFlag = false;
+	// шаблоны команд локального канала управления (uart)
 	const char *_ongps = "ongps";
 	const char *_offgps = "offgps";
 #endif
 
 uint8_t *adrByte = NULL;
 
-uint8_t devError = 0;
+uint8_t devError = 0;//байт состояния устройства (позиционный код по всем интерфейсам)
 
+//   Буфер для печати служебной информации (логи) через локальный канал управления
 #ifdef SET_STATIC_MEM
 	char PrnBuf[MAX_UART_BUF] = {0};// Служебный буфер для функции Report()
 #endif
-
+//    Указатели на структуры управления внутренними модулями сикроконтроллера
 UART_HandleTypeDef *portLOG = &huart1;//порт логов (uart)
 UART_HandleTypeDef *portGSM = &huart2;//порт GSM модуля (sim800l)
 I2C_HandleTypeDef *portOLED = &hi2c1;//порт OLED дисплея (ssd1306)
@@ -209,13 +218,12 @@ RTC_HandleTypeDef *portRTC = &hrtc;
 	float temp = 0.0;
 #endif
 
-
+//     Служебные переменные для внутренних модулей I2C, SPI
 uint8_t i2cRdy = 1;
-
 uint8_t screenON = 0;
 uint32_t spi_cnt = 0;
 uint8_t spiRdy = 1;
-
+//      Служебные переменные для модулей GSM/GPRM, GPS/GLONASS
 s_recq_t gsmTo;
 bool gsmToFlag = false;
 s_recq_t gsmFrom;
@@ -243,8 +251,9 @@ const char *cmd_adr = NULL;
 
 dattim_t DT;//date and time from sntp server
 
+//     Служебные переменные для приема смс
 #ifdef SET_SMS
-	const char *sim_auth_num = "79097965036";
+	const char *sim_auth_num = "7XXXYYYZZZZ";
 	const char *sim_num = "+79062103497";
 	const char *dev_name = "STM32_SIM800l";
 	char fromNum[lenFrom] = {0};
@@ -260,22 +269,23 @@ dattim_t DT;//date and time from sntp server
 	#endif
 #endif
 
+//   Перменные для реализации режима RADIO у модуля SIM800l
 uint8_t indList = 0;
 uint16_t freqList[MAX_FREQ_LIST] = {0};
 volatile bool prn_rlist = false;
 
+//   Переменные для реализации периодической отправки данных на внешний сервер
 uint32_t tmr_send = 0;
 const uint32_t send_period = _10s;
 
 
 //------------   AT команды GSM модуля   ------------------
-//const int8_t cmd_iniMax = 14;
+
 const ats_t cmd_ini[cmd_iniMax] = {//INIT
 		{"AT\r\n","OK"},
 		{"ATE0\r\n","OK"},
 		{"AT+CMEE=1\r\n","OK"},
 		{"AT+CLTS=1\r\n","OK"},
-		//{"AT+GSMBUSY=1;+CMGF=0\r\n","OK"},
 		{"AT+CMGF=0\r\n","OK"},
 		{"AT+CBC\r\n","OK"},
 		{"AT+CNMI=1,2,0,1,0\r\n","OK"},
@@ -284,13 +294,10 @@ const ats_t cmd_ini[cmd_iniMax] = {//INIT
 		{"AT+CSQ\r\n","OK"},//+CSQ: 14,0
 		{"AT+CREG?\r\n","OK"},//+CREG: 0,1
 		{"AT+CGATT=1\r\n","OK"},
-//		{"AT+CIPSHUT\r\n","SHUT OK"},
 		{"AT+CIPMODE=0\r\n","OK"},
 		{"AT+CIPMUX=0\r\n","OK"}
 };
-//const int8_t cmd_timeMax = 8;
 const ats_t cmd_time[cmd_timeMax] = {//GET TIME FROM SNTP SERVER
-//		{"AT+CLBS=4,1\r\n","OK"},//+CLBS: 3
 		{"AT+SAPBR=3,1,\"CONTYPE\",\"GPRS\"\r\n","OK"},
 		{"AT+SAPBR=3,1,\"APN\",","OK"},//\"internet\"\r\n" | "APN" + eol
 		{"AT+SAPBR=1,1\r\n","OK"},
@@ -300,7 +307,6 @@ const ats_t cmd_time[cmd_timeMax] = {//GET TIME FROM SNTP SERVER
 		{"AT+CCLK?\r\n","OK"},//+CCLK: "21/11/01,12:49:31+02"
 		{"AT+SAPBR=0,1\r\n","OK"}
 };
-//const int8_t cmd_netMax = 8;//11;
 const ats_t cmd_net[cmd_netMax] = {//SET CONTEXT AND MAKE CONNECTION
 		{"AT+CIPSTATUS\r\n","OK"},//after OK -> STATE: IP INITIAL
 		{"AT+CSTT=","OK"},//\"internet\",\"beeline\",\"beeline\"\r\n","OK"}, | "APN","LOGIN","PASSWORD" + eol
@@ -319,15 +325,12 @@ const ats_t cmd_net[cmd_netMax] = {//SET CONTEXT AND MAKE CONNECTION
 //		{"AT+CIPCLOSE\r\n","CLOSE OK"},
 //		{"AT+CIPSHUT\r\n","SHUT OK"}
 };
-//const int8_t cmd_radioMax = 4;
 const ats_t cmd_radio[cmd_radioMax] = {
 		{"AT+FMOPEN=0\r\n","OK"},//   ; вкыл
 		{"AT+FMVOLUME=6\r\n","OK"},//6 ;громкость от 0 до 6           | 6 + eol
 		{"AT+FMSCAN\r\n","OK"},// list of founded freq
 		{"AT+FMFREQ=","OK"}//,//1025 ; установить чатоту 102.5 Мгц | 1025 + eol
-		//{"AT+FMCLOSE\r\n","OK"}
 };
-//const int8_t cmd_anyMax = 11;
 const ats_t cmd_any[cmd_anyMax] = {
 		{"AT+CUSD=1,","OK"},//"#102#"" | "#102#" + eol    | +CUSD: 0, " Vash balans 200.00 r.", 15
 		{"AT+CCID\r\n","OK"},//8970199181027011035f
@@ -341,8 +344,9 @@ const ats_t cmd_any[cmd_anyMax] = {
 		{"AT+CIPSEND\r\n",">"},//send data after '>'
 		{"AT+FMCLOSE\r\n","OK"}
 };
+
 //------------   События от GSM модуля   ------------------
-//const int8_t gsmEventMax = 26;
+
 const char *gsmEvent[gsmEventMax] = {
 		"RDY",
 		"+CFUN: ",//1
@@ -371,7 +375,7 @@ const char *gsmEvent[gsmEventMax] = {
 		"ERROR",
 		"OK"
 };
-//const int8_t gsmStateMax = 6;
+
 const char *gsmState[gsmStateMax] = {
 		"IP INITIAL",
 		"IP START",
@@ -412,22 +416,6 @@ void StartDefaultTask(void *argument);
 void StartTemp(void *argument);
 
 /* USER CODE BEGIN PFP */
-
-//bool initRECQ(s_recq_t *q);
-
-//void *getMem(size_t len);
-//void freeMem(void *mem);
-
-//static char *fsErrName(int fr);
-
-//uint32_t get_tmr10(uint32_t ms);
-//bool check_tmr10(uint32_t ms);
-//uint32_t get_tmr(uint32_t sec);
-//bool check_tmr(uint32_t sec);
-//void errLedOn(const char *from);
-//void set_Date(time_t epoch);
-//int sec_to_str_time(uint32_t sec, char *stx);
-//uint8_t Report(const char *tag, bool addTime, const char *fmt, ...);
 
 /* USER CODE END PFP */
 
@@ -475,6 +463,7 @@ int main(void)
   MX_TIM10_Init();
   /* USER CODE BEGIN 2 */
 
+  	  //   мигнем тремя светодиодами
       HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
       HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_ERROR_Pin, GPIO_PIN_SET);
       HAL_GPIO_WritePin(CON_LED_GPIO_Port, CON_LED_Pin, GPIO_PIN_SET);
@@ -504,14 +493,15 @@ int main(void)
 
       Report(NULL, true, "Start application version '%s'\r\n", version);
 
-      cmds = (char *)calloc(1, CMD_LEN + 1);
+      cmds = (char *)calloc(1, CMD_LEN + 1);//выделяем память под буфер команд GSM модуля
 #ifdef SET_SMS
-      cusd = (char *)calloc(1, SMS_BUF_LEN);
+      cusd = (char *)calloc(1, SMS_BUF_LEN);//выделяем память под буфер для приема ответа на cusd-запросы
 
-      InitSMSList();
+      InitSMSList();// инициализация структуры для хранения частей смс
 #endif
-      //-------------------------------------------------
 
+      //-------------------------------------------------
+      //     Инициализация OLED дисплея
       oled_withDMA = 1;
       screenON = 1;
       i2c_ssd1306_init();//screen INIT
@@ -558,13 +548,16 @@ int main(void)
   /* USER CODE BEGIN RTOS_QUEUES */
   //if (!gsmQueToHandle || !gsmQueFromHandle) devError |= devQue;
 
-  gsmToFlag   = initRECQ(&gsmTo);
-  gsmFromFlag = initRECQ(&gsmFrom);
+  	//    Инициализация служебных очередей для работы с GSM модулем
+  	gsmToFlag   = initRECQ(&gsmTo);
+  	gsmFromFlag = initRECQ(&gsmFrom);
 #ifdef SET_GPS
-  gpsFromFlag = initRECQ(&gpsFrom);
+  	//    Инициализация служебной очереди для работы с GPS модулем
+  	gpsFromFlag = initRECQ(&gpsFrom);
 #endif
 
-  set_Date((time_t)epoch);//set time last edit
+  	//   Начальная установка в RTC даты и времени из переменной epoch (unix tamestamp)
+  	set_Date((time_t)epoch);//set time last edit
 
   /* add queues, ... */
   //"start" rx_gsm_interrupt
@@ -1071,6 +1064,8 @@ void freeMem(void *mem)
 #endif
 }
 //------------------------------------------------------------------------------------------
+//   Функция формирует символьное сообщения согласно кода ошибки
+//
 void errNameStr(uint8_t er, char *st)
 {
 	*st = '\0';
@@ -1115,7 +1110,7 @@ void serialLOG()
 					set_Date((time_t)extDate);
 				}
 			} else setDate = true;
-		} else if (strstr(RxBuf, _restart)) {//const char *_restart = "restart";
+		} else if (strstr(RxBuf, _restart)) {
 			if (!restart_flag) restart_flag = 1;
 		} else if ( (strstr(RxBuf, "AT")) || (strstr(RxBuf, "at")) ) {// enter AT_commands
 			if (gsmToFlag) {
@@ -1125,7 +1120,6 @@ void serialLOG()
 					uk = strchr(RxBuf, CTRL_Z);
 					if (uk) *(uk + 1) = '\0';
 				}
-				//strncpy(tmp_RxBuf, RxBuf, sizeof(tmp_RxBuf) - 1);
 				strcat(RxBuf, eol);
 				prn_cmd = false;
 				mk_at = true;
@@ -1157,7 +1151,7 @@ void serialLOG()
 			if (prnGpsFlag) prnGpsFlag = false;
 		}
 #endif
-		//
+		// блок помещает в очередь команд новое сообщение для GSM модуля
 		if (mk_at) {
 			char *to = (char *)calloc(1, strlen(RxBuf) + 1);
 			if (to) {
@@ -1171,8 +1165,10 @@ void serialLOG()
 				}
 			} else devError |= devMem;
 		}
-		//
+		//--------------------------------------------------------------
+
 		rx_uk = 0; memset(RxBuf, 0, sizeof(RxBuf));
+
 	} else rx_uk++;
 
 }
@@ -1190,24 +1186,20 @@ void serialGSM()
 			if (gsmByte != 0x3e) strcat(gsmBuf, "\r\n");//0x0D 0x0A
 			int len = strlen(gsmBuf);
 			if (gsmFromFlag) {
+				// Блок помещает в очередь ответов на команду очередное сообщение от модуля GSM
 				char *from = (char *)calloc(1, len + 1);
 				if (from) {
-					//if (strlen(from) == (len + 1)) {
-						memcpy(from, gsmBuf, len);
-						if (putRECQ(from, &gsmFrom) < 0) {
-							devError |= devQue;
-							free(from);
-						} else {
-							if (devError & devQue) devError &= ~devQue;
-						}
-						//if (devError & devMem) devError &= ~devMem;
-					//} else {
-					//	devError |= devMem;
-					//	free(from);
-					//}
+					memcpy(from, gsmBuf, len);
+					if (putRECQ(from, &gsmFrom) < 0) {
+						devError |= devQue;
+						free(from);
+					} else {
+						if (devError & devQue) devError &= ~devQue;
+					}
 				} else {
 					devError |= devMem;
 				}
+				//-----------------------------------------------------------------------------
 			}
 
 			gsm_uk = 0;
@@ -1229,18 +1221,20 @@ void serialGPS()
 	if (gdone) {
 		if (gpsByte == 0x0a) {// '\n'
 			if (gpsFromFlag) {// && gsmInit && sntpInit)
-				if (gpsValidate(gpsBuf)) {
+				if (gpsValidate(gpsBuf)) {// Функция проверяет на валиднсть данные от GPS модуля
 					cnt_gps++;
 					int len = strlen(gpsBuf);
 					char *gf = (char *)calloc(1, len + 1);
 					if (gf) {
+						// Блок помещает в очередь данные, полученные от GPS модуля
 						if (strlen(gf) != (len + 1)) {
 							memcpy(gf, gpsBuf, len);
 							if (putRECQ(gf, &gpsFrom) < 0) {
 								devError |= devQue;
 								free(gf);
-							} //else if (devError & devQue) devError &= ~devQue;
+							}
 						} else devError |= devMem;
+						//---------------------------------------------------------
 					} else devError |= devMem;
 				}
 			}
@@ -1336,28 +1330,23 @@ void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
 	/* Infinite loop */
-//-------------------------------------------------------------
-//
-//	    Нитка обработки команд и событий от GSM модуля
-//
-//-------------------------------------------------------------
-
-	//gsmReset();
-
-	//set_Date((time_t)epoch);
+	//---------------------------------------------------------------
+	//
+	// Нитка обработки команд, событий и данных от GSM и GPS модулей
+	//
+	//---------------------------------------------------------------
 
 	Report(__func__, true, "Start main thread...(%lu)\r\n", xPortGetFreeHeapSize());
 
-    //---------------------------------------------------
+    //---------------------------------------------------------------
 
-
+	//   Описание и инициализация служебных переменных
 	char *uks = NULL;
 	char buf[MAX_GSM_BUF] = {0};
 	char buf2[MAX_GSM_BUF] = {0};
 	char scr[MAX_GSM_BUF] = {0};
 	char cmdBuf[MAX_CMD_BUF] = {0};
 	int8_t slin = 3, elin = 4, clin = 3, at_line = 2, err_line = 8, temp_line = 5;
-
 
 	int8_t cur_cmd = -1;
 	int8_t grp_cmd = -1;
@@ -1380,9 +1369,12 @@ void StartDefaultTask(void *argument)
 #endif
 	uint32_t cur_sec = get_tmr10(1);
 
+	//-----   Основной цикл работы   -----
+
 	while (!restart_flag) {
 
 #ifdef SET_OLED_I2C
+		//-----   блок обработки секундного события   -----
 		if (check_tmr10(cur_sec)) {
 			cur_sec = get_tmr10(_900ms);
 			sec_to_str_time(cur_sec, scr);
@@ -1404,12 +1396,11 @@ void StartDefaultTask(void *argument)
 					i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, temp_line, false);
 				}
 			}
-			//
-
-			//
 		}
 #endif
-		//
+		//-------------------------------------------------------
+
+		//-----   Блок чтения команд из очереди и отправки их GSM модулю   -----
 		if (gsmToFlag) {//command to GSM module queue is ready
 			if (getRECQ(buf, &gsmTo) >= 0) {
 				if (HAL_UART_Transmit_DMA(portGSM, (uint8_t *)buf, strlen(buf)) != HAL_OK) devError |= devUART;
@@ -1429,7 +1420,9 @@ void StartDefaultTask(void *argument)
 #endif
 			}
 		}
-		//
+		//-----------------------------------------------------------------------
+
+		//-----   Блок чтения сообщения от модуля GSM   -----
 		if (gsmFromFlag) {//event (ack) from GSM module queue is ready
 			if (getRECQ(buf2, &gsmFrom) >= 0) {
 #ifdef SET_OLED_I2C
@@ -1444,9 +1437,9 @@ void StartDefaultTask(void *argument)
 				Report(NULL, false, "%s", buf2);
 				//
 				if ((uks = strstr(buf2, "\r\n")) != NULL) *uks = '\0';
-				result = parseEvent(buf2, (void *)&gsmFlags);
+				result = parseEvent(buf2, (void *)&gsmFlags);// Анализ сообщения от модуля GSM
 				//
-				if (gsmFlags.begin) {
+				if (gsmFlags.begin) {//  Начать работу нитки с самого начала (по события 'SMS Ready')
 					*(unsigned int *)&gsmFlags = 0;
 					gsmFlags.sReady = 1;
 					cur_cmd = grp_cmd = -1;
@@ -1471,12 +1464,11 @@ void StartDefaultTask(void *argument)
 
 					continue;
 				}
-				//
+				//-----   Блок отправки данных стороннему серверу через установленное tcp-соединения   -----
 				if (gsmFlags.prompt) {//send json_data to external tcp server
 					gsmFlags.prompt = 0;
 					uint16_t dln = mkData(cmdBuf);
 					if (dln) {
-						/**/
 						if (HAL_UART_Transmit_DMA(portGSM, (uint8_t *)cmdBuf, dln) != HAL_OK) {
 							devError |= devUART;
 						} else {
@@ -1484,25 +1476,11 @@ void StartDefaultTask(void *argument)
 							gsmFlags.send = 0;
 							Report(NULL, false, "%s", cmdBuf);
 						}
-						/**/
-						/*
-						//if (cmds) { free(cmds); cmds = NULL; }
-						char *cd = (char *)calloc(1, MAX_CMD_BUF);
-						if (cd) {
-							strncpy(cd, cmdBuf, MAX_CMD_BUF - 1);
-							if (putRECQ(cd, &gsmTo) < 0) {
-								devError |= devQue;
-								free(cd);
-								cd = NULL;
-							} else {
-								Report(NULL, false, cd);
-								gsmFlags.send = 0;
-							}
-						} else devError |= devMem;
-						*/
 					}
 				}
-				//
+				//-------------------------------------------------------------------------------------------
+
+				// Для режима авто - частиный анализ полученных от GSM модуля данных (сообщений)
 				if (at_auto) {
 					if (uk_ack) {
 						if (strstr(buf2, uk_ack)) {
@@ -1544,20 +1522,19 @@ void StartDefaultTask(void *argument)
 											if (strlen(buf2) >= 15) memcpy(gsmIMEI, buf2, 15);
 										}
 									break;
-									//case seqTime:
-									//break;
 								}
 							}
 						}
 					}
 				}
-				//
+				//-----------------------------------------------------------------------------------
 			}
 		}
-		/**/
+		//--- Начальная активация таймера периодической выдачи данных стороннему серверу ---
 		if (!tmr_send) {// && !at_auto) {
 			if (gsmFlags.connect) tmr_send = get_tmr10(0);
 		}
+		//--- Блок выдачи команды отправки данных на сторонний сервер ---
 		if (tmr_send && !gsmFlags.send) {
 			if (check_tmr10(tmr_send)) {
 				if (gsmFlags.connect) {
@@ -1571,42 +1548,41 @@ void StartDefaultTask(void *argument)
 							devError |= devQue;
 							free(cmds);
 							cmds = NULL;
-						} else {
-							prn_cmd = true;
-							//Report(NULL, false, cmds);
-						}
+						} else prn_cmd = true;
 					} else devError |= devMem;
 					gsmFlags.busy = 1;
 					//
 					//
-					tmr_send = get_tmr10(send_period);
+					tmr_send = get_tmr10(send_period);// данные на сервер будем отправлять с периодом = send_period (10 сек.)
 				} else tmr_send = 0;
 			}
 		}
-		/**/
+		//------------------------------------------------------------
+
+		//   Блок анализа флагой локальный команд и запуска соответствующей цепочки AT-команд
 		if (!at_auto) {
 			go = false;
-			if (ini_flag) {
+			if (ini_flag) {// Запускаем цепочку команд инициализации молуля GSM
 				ini_flag = 0;
 				gsmInit = 0;
 				grp_cmd = seqInit;
 				atTotal = cmd_iniMax;
 				cmd_adr = &cmd_ini[0].cmd[0];
 				go = true;
-			} else if (sntp_flag) {
+			} else if (sntp_flag) {// Запускаем цепочку команд получения даты/времени от sntp сервера
 				sntp_flag = 0;
 				sntpInit = 0;
 				grp_cmd = seqTime;
 				atTotal = cmd_timeMax;
 				cmd_adr = &cmd_time[0].cmd[0];
 				go = true;
-			} else if (radio_flag) {
+			} else if (radio_flag) {// Запускаем цепочку команд активации режима radio у модуля GSM
 				radio_flag = 0;
 				grp_cmd = seqRadio;
 				atTotal = cmd_radioMax;
 				cmd_adr = &cmd_radio[0].cmd[0];
 				go = true;
-			}  else if (net_flag) {
+			}  else if (net_flag) {// Запускаем цепочку команд для установления соединения со сторонним сервером
 				net_flag = false;
 				grp_cmd = seqNet;
 				atTotal = cmd_netMax;
@@ -1621,7 +1597,7 @@ void StartDefaultTask(void *argument)
 				tmr_next = get_tmr10(_1s);
 			}
 		}
-		//
+		//   Блок запуска соответствующей цепочки AT-команд в режиме 'авто'
 		if (tmr_cmd) {//start send at_commands in mode auto
 			if (check_tmr(tmr_cmd)) {
 				if (gsmFlags.sReady) {
@@ -1647,7 +1623,7 @@ void StartDefaultTask(void *argument)
 			}
 		}
 		//
-		//
+		// Для режима 'авто' - блок последовательной выдачи команд модулю GSM
 		if (at_auto) {
 			if (tmr_next) {
 				if (check_tmr10(tmr_next)) {
@@ -1657,10 +1633,10 @@ void StartDefaultTask(void *argument)
 						cur_cmd++;
 						gsmFlags.busy = 1;
 						switch (grp_cmd) {
-							case seqInit:
-							case seqTime:
-							case seqRadio:
-							case seqNet:
+							case seqInit:// группа команд инициализации
+							case seqTime:// группа команд получения дата/время от sntp сервера
+							case seqRadio:// группа команд активации режима radio у модуля GSM
+							case seqNet:// группа команд установления соединения со сторонним сервером
 								if (cur_cmd < atTotal) {
 									int lens = CMD_LEN;
 									uk_cmd = cmd_adr + (cur_cmd * sizeof(ats_t));//cmd
@@ -1764,7 +1740,8 @@ void StartDefaultTask(void *argument)
 					}//if (next_cmd)
 				}//if (check_tmr10(tmr_next))
 			}//if (tmr_next)
-			//
+
+			// Блок обработки события - 'нет ответа от модуля GSM' - timeout
 			if (tmr_ack) {
 				if (check_tmr10(tmr_ack)) {
 					if (cmd_err) cmd_err--;
@@ -1785,8 +1762,11 @@ void StartDefaultTask(void *argument)
 					tmr_ack = 0;
 				}
 			}
-			//
+			//---------------------------------------------------------------
 		} else {
+			// если режим 'авто' выдачи команд завершен - проверяем нет ли необходимости
+			// выполнить одиночную команду из группы 'any'
+			//
 			if (result != -1) {//== cCIPSHUT
 				if (cmds) { free(cmds); cmds = NULL; }
 				cmds = (char *)calloc(1, CMD_LEN + 1);
@@ -1800,10 +1780,11 @@ void StartDefaultTask(void *argument)
 				} else devError |= devMem;
 				result = -1;
 			}
+			//----------------------------------------------------------------------------
 		}
 		//
 #ifdef SET_SMS
-		//-------------------------   concat sms parts by timer   ------------------------
+		//--- блок конкатенации частей смс по истечении таймера ожидания прихода всех частей ---
 		if (wait_sms) {
 			if (check_tmr(wait_sms)) {
 				wait_sms = 0;
@@ -1835,19 +1816,19 @@ void StartDefaultTask(void *argument)
 
 		//
 		//
-		if (prn_flags) {
+		if (prn_flags) {// Событие - установлен флаг печати структуры состояния (все рабочие флаги)
 			prn_flags = false;
 			prnFlags((void *)&gsmFlags);
-		} else if (prn_rlist) {
+		} else if (prn_rlist) {// Событие - печать лист с чатотами просканированых ФМ-радиостанций
 			prn_rlist = false;
 			prnRList();
-		} else if (prn_freemem) {
+		} else if (prn_freemem) {// Событие - печатать количество сободной динамической памяти из 'кучи'
 			prn_freemem = false;
 			Report(__func__, true, "Free heap memory size %lu\r\n", xPortGetFreeHeapSize());
 		}
 		//
 		//
-		if (devError) {
+		if (devError) {//  Блок выдачи на дисплей ошибок на устройстве, если таковые есть
 #ifdef SET_OLED_I2C
 			errNameStr(devError, scr);
 			if (strlen(scr) > MAX_FONT_CHAR) scr[MAX_FONT_CHAR] = '\0';
@@ -1856,7 +1837,9 @@ void StartDefaultTask(void *argument)
 			errLedOn(NULL);
 			devError = 0;
 		}
-		//
+		//-------------------------------------------------------------------------------
+
+		//   Блок чтения данных от GPS модуля из очереди сообщений (~ каждую секунду)
 #ifdef SET_GPS
 		if (gpsFromFlag) {//queue for messages from GPS module is ready
 			if (check_tmr10(gps_tmr)) {
@@ -1865,7 +1848,7 @@ void StartDefaultTask(void *argument)
 	#ifdef SET_GPS_DEBUG
 					Report(NULL, true, "%s%s", buf, eol);
 	#endif
-					if (gpsParse(buf)) {
+					if (gpsParse(buf)) {// анализ и преобразование данных из NMEA-формата в структуру с валидными данными
 						sch++;
 						if (sch == MAX_NMEA_MSG) {
 							sch = 0;
@@ -1873,14 +1856,16 @@ void StartDefaultTask(void *argument)
 								//prnGpsFlag = false;
 								Report(NULL, true, "%s%s", gpsPrint(buf), eol);
 							}
+							// Вывод данных на OLED дисплей
 							s_float_t flo = {0,0};
 							floatPart(GPS.dec_latitude, &flo);  sprintf(scr,            "%02lu.%04lu ",  flo.cel, flo.dro / 100);
 							floatPart(GPS.dec_longitude,&flo);  sprintf(scr+strlen(scr),"%02lu.%04lu", flo.cel, flo.dro / 100);
 							floatPart(GPS.msl_altitude,  &flo); sprintf(scr+strlen(scr),"\n sat:%d alt:%lu",GPS.satelites, flo.cel);
 							i2c_ssd1306_text_xy(scr, 1, cor_line, false);
 							gps_tmr = get_tmr10(_950ms);
+							//
 						}
-					}
+					}//-----------------------------------------------------------------------------------------------------
 				}
 			}
 		}
@@ -1892,7 +1877,7 @@ void StartDefaultTask(void *argument)
 	//
 	Report(NULL, true, "Restart...\n");
 	HAL_Delay(1000);
-	NVIC_SystemReset();
+	NVIC_SystemReset();// Рестарт контроллера по локальной команде 'restart'
 	//
 	//
 	//
@@ -1909,6 +1894,13 @@ void StartDefaultTask(void *argument)
 void StartTemp(void *argument)
 {
   /* USER CODE BEGIN StartTemp */
+
+	//---------------------------------------------------------------------
+	//
+	//  Нитка чтения и преобразования данных с датчика температуры DS18B20
+	//
+	//---------------------------------------------------------------------
+
 #ifdef SET_TEMP_SENSOR
   /* Infinite loop */
 
@@ -1916,6 +1908,7 @@ void StartTemp(void *argument)
 
 	uint8_t	Ds18b20TryToFind = 5;
 
+	//  Блок определения есть ли наш датчик на линии DS18B20_Pin (5 попыток)
 	do
 	{
 		OneWire_Init(&OneWire, DS18B20_GPIO_Port, DS18B20_Pin);
@@ -1936,23 +1929,25 @@ void StartTemp(void *argument)
 		if (restart_flag) break;
 
 	} while (Ds18b20TryToFind > 0);
+	//--------------------------------------------------------------
 
 
-	if (TempSensorCount > 0) sensPresent = true;
+	if (TempSensorCount > 0) sensPresent = true;//  Датчик обнаружен !!!
 
 
-	while (!restart_flag && Ds18b20TryToFind) {
+	//  Цикл чтения данных и преобразования значения температуры в градусы Цельсия
+	while (!restart_flag && sensPresent) {//Ds18b20TryToFind)
 
 		for (uint8_t i = 0; i < TempSensorCount; i++) {
-			Ds18b20Delay(50);
+			osDelay(50);
 			DS18B20_SetResolution(&OneWire, ds18b20[i].Address, DS18B20_Resolution_12bits);
-			Ds18b20Delay(50);
+			osDelay(50);
 			DS18B20_DisableAlarmTemperature(&OneWire,  ds18b20[i].Address);
 		}
 		for (;;) {
 			while (!_DS18B20_UPDATE_INTERVAL_MS) {
 				if (Ds18b20StartConvert == 1) break;
-				Ds18b20Delay(10);
+				osDelay(10);
 			}
 			Ds18b20Timeout=_DS18B20_CONVERT_TIMEOUT_MS/10;
 			DS18B20_StartAll(&OneWire);
@@ -1964,14 +1959,14 @@ void StartTemp(void *argument)
 			}
 			if (Ds18b20Timeout > 0) {
 				for (uint8_t i = 0; i < TempSensorCount; i++) {
-					Ds18b20Delay(1000);
+					osDelay(1000);
 					ds18b20[i].DataIsValid = DS18B20_Read(&OneWire, ds18b20[i].Address, &ds18b20[i].Temperature);
 				}
 			} else {
 				for (uint8_t i = 0; i < TempSensorCount; i++) ds18b20[i].DataIsValid = false;
 			}
 			//
-			fTemp = ds18b20[0].Temperature;
+			fTemp = ds18b20[0].Temperature;// Глобальная переменная для хранения значения температуры !!!
 			//
 			Ds18b20StartConvert = 0;
 			osDelay(2000);//_DS18B20_UPDATE_INTERVAL_MS);
@@ -2001,7 +1996,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE BEGIN Callback 0 */
 //------------------------------------------------------
 //
-//   CallBack функция от 10-ти миллисекундного таймера
+//   CallBack функция таймера
 //
 //------------------------------------------------------
   /* USER CODE END Callback 0 */
@@ -2009,7 +2004,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
-  else if (htim->Instance == TIM3) {
+  else if (htim->Instance == TIM3) {// период срабатывания 10 мсек.
 	  HalfSecCounter++;//+10ms
 	  if (!(HalfSecCounter % _1s)) {//seconda
 		  secCounter++;
@@ -2022,8 +2017,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	  }
   }
 #ifdef SET_TEMP_SENSOR
-  else if (htim->Instance == TIM10) {
-
+  else if (htim->Instance == TIM10) {// период срабатывания 1 мксек.
+	  //
   }
 #endif
   /* USER CODE END Callback 1 */

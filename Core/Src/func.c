@@ -21,8 +21,8 @@ void floatPart(float val, s_float_t *part)
 }
 #endif
 //-----------------------------------------------------------------------------
-//          Функции формирования временных интервалов,
-//           а также контроля за этими интервалами
+//     Функции формирования временных интервалов,
+//      а также контроля за этими интервалами
 //
 uint32_t get_secCounter()
 {
@@ -72,13 +72,6 @@ uint64_t get_hstmr(uint64_t hs)
 bool check_hstmr(uint64_t hs)
 {
 	return (get_hsCounter() >= hs ? true : false);
-}
-//-----------------------------------------------------------------------------------------
-void gsmReset()
-{
-	/*HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET);//LED ON
-	HAL_Delay(750);
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET);//LED OF*/
 }
 //-----------------------------------------------------------------------------------------
 
@@ -305,6 +298,7 @@ int8_t ret = -1;
 }
 //-----------------------------------------------------------------------------
 //            Функция извлекает сообщение из очереди
+//       освобождая при этом динамическую символьную строку
 //
 int8_t getRECQ(char *dat, s_recq_t *q)
 //int8_t getRECQ(uint16_t *dat, s_recq_t *q)
@@ -350,7 +344,7 @@ void errLedOn(const char *from)
 	if (from) Report(NULL, true, "Error in function '%s'\r\n", from);
 }
 //------------------------------------------------------------------------------------------
-//        Функция устанавливает время (в формате epochtime) в модуле RTC контроллера
+//        Функция устанавливает время (в формате unix timestamp) в модуле RTC контроллера
 //
 void set_Date(time_t ep)
 {
@@ -370,7 +364,6 @@ bool os_core = false;
 	sTime.Minutes = ts.tm_min;
 	sTime.Seconds = ts.tm_sec;
 
-	//__HAL_RCC_RTC_DISABLE();
 	if (coreStatus == osOK) os_core = true;
 
 #ifdef USED_FREERTOS
@@ -382,7 +375,6 @@ bool os_core = false;
 		else {
 			if (HAL_RTC_SetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
 			else {
-				//if (devError & devRTC) devError &= ~devRTC;
 				yes = true;
 			}
 		}
@@ -395,8 +387,6 @@ bool os_core = false;
 #endif
 
 	if (yes) setDate= true;
-
-	//__HAL_RCC_RTC_ENABLE();
 }
 //------------------------------------------------------------------------------------------
 //       Функция возвращает текущее время (в формате epochtime) из модуля RTC
@@ -487,7 +477,6 @@ bool yes = false;
 		else {
 			if (HAL_RTC_GetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;//errLedOn(__func__);
 			else {
-				//if (devError & devRTC) devError &= ~devRTC;
 				yes = true;
 			}
 		}
@@ -501,7 +490,7 @@ bool yes = false;
     return ret;
 }
 //------------------------------------------------------------------------------------------
-//                Функция вывода символьной строки в порт логов (portLOG)
+//   Функция вывода символьной строки в локальный канал управления (portLOG)
 //
 uint8_t Report(const char *tag, bool addTime, const char *fmt, ...)
 {
@@ -534,17 +523,11 @@ int dl = 0;
 		va_start(args, fmt);
 		vsnprintf(buff + dl, len - dl, fmt, args);
 		uartRdy = 0;
-		//er = HAL_UART_Transmit(&huart1, (uint8_t *)buff, strlen(buff), 1000);
-		if (HAL_UART_Transmit_DMA(portLOG, (uint8_t *)buff, strlen(buff)) != HAL_OK)
-			devError |= devUART;
-		//else
-		//	if (devError & devUART) devError &= ~devUART;
-		/**/
+		if (HAL_UART_Transmit_DMA(portLOG, (uint8_t *)buff, strlen(buff)) != HAL_OK) devError |= devUART;
 		while (HAL_UART_GetState(portLOG) != HAL_UART_STATE_READY) {
 			if (HAL_UART_GetState(portLOG) == HAL_UART_STATE_BUSY_RX) break;
 			HAL_Delay(1);
 		}
-		/**/
 		va_end(args);
 #ifndef SET_STATIC_MEM
 		freeMem(buff);
@@ -554,6 +537,8 @@ int dl = 0;
 	return 0;
 }
 //------------------------------------------------------------------------------------------
+//  Функция устанавливает в модуле RTC дату и время, полученные от sntp сервера
+//
 bool set_DT()
 {
 bool ret = false;
@@ -593,7 +578,6 @@ RTC_DateTypeDef sDate;
 		else {
 			if (HAL_RTC_SetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
 			else {
-				//if (devError & devRTC) devError &= ~devRTC;
 				ret = true;
 			}
 		}
@@ -607,6 +591,8 @@ RTC_DateTypeDef sDate;
 	return ret;
 }
 //------------------------------------------------------------------------------------------
+//   Функция печатает (выдаёт в локальный канал управления) значения всех служебных данных
+//
 void prnFlags(void *g)
 {
 	gsmFlags_t *gf = (gsmFlags_t *)g;
@@ -622,6 +608,9 @@ void prnFlags(void *g)
 		   cntpSRV, sntpDT, gsmIMEI, VCC);
 }
 //------------------------------------------------------------------------------------------
+//   Функция печатает (выдаёт в локальный канал управления) список
+//         просканированных частот ФМ-радиостанций
+//
 void prnRList()
 {
 char tp[(MAX_FREQ_LIST * 8) + 1] = {0};
@@ -646,6 +635,8 @@ float freq = 0.0;
 	}
 }
 //------------------------------------------------------------------------------------------
+//  Функция парсит символьную строку с датой и временем, полученными от sntp сервера
+//
 bool checkDT(char *str)//21/11/01,12:49:31+02
 {
 bool ret = false;
@@ -688,6 +679,9 @@ bool ret = false;
 	return ret;
 }
 //-----------------------------------------------------------------------------------------
+//  Функция парсит сообщения от GSM модуля и устанавливает соответственные флаги состояния,
+//  а также инициализирует, при необходимости, запуск соответствующей реакции на сообщение
+//
 int8_t parseEvent(char *in, void *g)
 {
 char *uks = NULL, *uki = NULL;
@@ -752,7 +746,6 @@ int i, j, k;
 				} else {
 					if (*uks == '1') {
 						gf->tReady = 1;
-						//ret = cCCLK;
 					} else {
 						gf->tReady = 0;
 					}
@@ -766,7 +759,7 @@ int i, j, k;
 					char *uki = strchr(uks, '"');
 					if (uki) *uki = '\0';
 					strncpy(sntpDT, uks, sizeof(sntpDT) - 1);
-					/**/
+					//
 					if (gf->tReady) {
 						if (checkDT(sntpDT)) {
 							gf->reqDT = 1;
@@ -778,7 +771,7 @@ int i, j, k;
 							}
 						}
 					}
-					/**/
+					//
 				}
 			break;
 			case _CBC://+CBC: 0,65,3928
@@ -809,15 +802,12 @@ int i, j, k;
 			case _CMT:
 			case _SCLASS0:
 #ifdef SET_SMS
-				/**/
 				gf->sms = 1;
 				memset(SMS_text, 0, SMS_BUF_LEN);
 				k = strlen(in);
 				if (k > SMS_BUF_LEN - 3) k = SMS_BUF_LEN - 3;
 				strncpy(SMS_text, in, k);
 				strcat(SMS_text, eol);
-				//Report(NULL, false, "SMS_text:%s\r\n", in);
-				/**/
 #endif
 			break;
 			case _STATE:
@@ -878,19 +868,19 @@ int i, j, k;
 		}
 	} else {
 #ifdef SET_SMS
+		//-------------------- Блок обработки принятой смс -----------------------
 		if (gf->sms) {
 			gf->sms = 0;
 			//
 			j = strlen(SMS_text);
 			i = strlen(in);
 			if ((j + i + 2) < SMS_BUF_LEN) {
-				strcat(SMS_text, in);//strcat(&SMS_text[j], in);
-				//if (!strstr(in, eol))
-					strcat(SMS_text, eol);
-				//if (i) Report(NULL, false, in);
+				strcat(SMS_text, in);
+				strcat(SMS_text, eol);
 				memset(abcd, 0, sizeof(abcd));
 				memset(fromNum, 0, sizeof(fromNum));
 				sms_num = 0;
+				// Преобразование смс из формата UCS2 в текстовый формат
 				sms_len = conv_ucs2_text((uint8_t *)SMS_text, fromNum, abcd, 0);
 				if (sms_len > 0) {
 					Report(NULL, true, "[SMS] len=%u udhi=[%02X%02X%02X%02X%02X] from='%s' body:\r\n%.*s\r\n",
@@ -907,6 +897,7 @@ int i, j, k;
 								if (!wait_sms) wait_sms = get_tmr(wait_sms_time);//set timer for wait all patrs recv.
 								if (LookAllPart(reco.total) == reco.total) {//all parts are present -> concat begin
 									*SMS_text = '\0';
+									//  Склейка частей смс при необходимости
 									if (ConcatSMS(SMS_text, reco.total, &sms_num, &sms_len) == reco.total) {
 										Report(NULL, true, "[SMS] Concat message #%u (len=%u parts=%u) done:\r\n%.*s\r\n",
 												sms_num, sms_len, reco.total, sms_len, SMS_text);
@@ -945,7 +936,7 @@ int i, j, k;
 				}
 				//*in = '\0';
 			} else Report(NULL, true, "Too long string - %d bytes\r\n", j + i + 2);
-		} else if (gf->rlist) {
+		} else if (gf->rlist) {// добавляем в список частоты ФМ-радиостанций
 			int dl = strlen(in);
 			if ((dl >= 3) && (dl <= 4)) {
 				if (indList < MAX_FREQ_LIST) {
@@ -960,6 +951,8 @@ int i, j, k;
 	return ret;
 }
 //-----------------------------------------------------------------------------------------
+//         Функция приводит к верхнему регистру все символы строки
+//
 void toUppers(char *st)
 {
 int i;
@@ -967,6 +960,10 @@ int i;
     for (i = 0; i < strlen(st); i++) *(st + i) = toupper(*(st + i));
 }
 //-----------------------------------------------------------------------------------------
+//   Функция формирует символьную строку с данными для передачи на сторонний сервер
+//        			(значение температуры и данные геолокации)
+//         			и возвращает длинну сформированной строки
+//
 uint16_t mkData(char *data)
 {
 s_float_t flo = {0, 0};

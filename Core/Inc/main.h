@@ -387,13 +387,13 @@ UART_HandleTypeDef *portGPS;//порт GPS модуля (ATGM332D)
 TIM_HandleTypeDef *tmrDS18B20;
 
 
-#define cmd_iniMax   14
-#define cmd_timeMax   8
-#define cmd_netMax    8//11
-#define cmd_radioMax  4//5
-#define cmd_anyMax   11//10//9
-#define gsmEventMax  26//25//24//23//21
-#define gsmStateMax   6//4
+#define cmd_iniMax   14 // количество команд в цепочке команд инициализации
+#define cmd_timeMax   8 // количество команд в цепочке sntp команд
+#define cmd_netMax    8 // количество команд в цепочке команд соединения с сервером
+#define cmd_radioMax  4 // количество команд в цепочке команд режима 'радио'
+#define cmd_anyMax   11 // количество команд в группе одиночных команд
+#define gsmEventMax  26 // количество сообщений от модуля GSM, подлежащих обработке
+#define gsmStateMax   6 // количество различных значений у сообщения 'STATUS'
 
 #define MAX_RSSI 32
 

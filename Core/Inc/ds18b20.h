@@ -104,13 +104,8 @@ uint16_t	Ds18b20Timeout;
 float fTemp;
 bool sensPresent;
 
-//#if (_DS18B20_USE_FREERTOS==1)
-//	void	Ds18b20_Init(osPriority Priority);
-//#else
-//	bool	Ds18b20_Init(void);
-//#endif
 
-bool		Ds18b20_ManualConvert(void);
+bool Ds18b20_ManualConvert(void);
 
 
 //        OneWire delay
@@ -123,33 +118,33 @@ void ONEWIRE_OUTPUT(OneWire_t *gp);
 
 //------------------------------------------------------------------------
 
-uint8_t DS18B20_Start(OneWire_t* OneWireStruct, uint8_t* ROM);
-void 	DS18B20_StartAll(OneWire_t* OneWireStruct);
-bool	DS18B20_Read(OneWire_t* OneWireStruct, uint8_t* ROM, float* destination);
-uint8_t DS18B20_GetResolution(OneWire_t* OneWireStruct, uint8_t* ROM);
-uint8_t DS18B20_SetResolution(OneWire_t* OneWireStruct, uint8_t* ROM, DS18B20_Resolution_t resolution);
-uint8_t DS18B20_Is(uint8_t* ROM);
-uint8_t DS18B20_SetAlarmHighTemperature(OneWire_t* OneWireStruct, uint8_t* ROM, int8_t temp);
-uint8_t DS18B20_SetAlarmLowTemperature(OneWire_t* OneWireStruct, uint8_t* ROM, int8_t temp);
-uint8_t DS18B20_DisableAlarmTemperature(OneWire_t* OneWireStruct, uint8_t* ROM);
-uint8_t DS18B20_AlarmSearch(OneWire_t* OneWireStruct);
-uint8_t DS18B20_AllDone(OneWire_t* OneWireStruct);
+uint8_t DS18B20_Start(OneWire_t *OneWireStruct, uint8_t *ROM);
+void 	DS18B20_StartAll(OneWire_t *OneWireStruct);
+bool	DS18B20_Read(OneWire_t *OneWireStruct, uint8_t *ROM, float *destination);
+uint8_t DS18B20_GetResolution(OneWire_t *OneWireStruct, uint8_t *ROM);
+uint8_t DS18B20_SetResolution(OneWire_t *OneWireStruct, uint8_t *ROM, DS18B20_Resolution_t resolution);
+uint8_t DS18B20_Is(uint8_t *ROM);
+uint8_t DS18B20_SetAlarmHighTemperature(OneWire_t *OneWireStruct, uint8_t *ROM, int8_t temp);
+uint8_t DS18B20_SetAlarmLowTemperature(OneWire_t *OneWireStruct, uint8_t *ROM, int8_t temp);
+uint8_t DS18B20_DisableAlarmTemperature(OneWire_t *OneWireStruct, uint8_t *ROM);
+uint8_t DS18B20_AlarmSearch(OneWire_t *OneWireStruct);
+uint8_t DS18B20_AllDone(OneWire_t *OneWireStruct);
 
 
-void OneWire_Init(OneWire_t* OneWireStruct, GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin);
-uint8_t OneWire_Reset(OneWire_t* OneWireStruct);
-uint8_t OneWire_ReadByte(OneWire_t* OneWireStruct);
-void OneWire_WriteByte(OneWire_t* OneWireStruct, uint8_t byte);
-void OneWire_WriteBit(OneWire_t* OneWireStruct, uint8_t bit);
-uint8_t OneWire_ReadBit(OneWire_t* OneWireStruct);
-uint8_t OneWire_Search(OneWire_t* OneWireStruct, uint8_t command);
-void OneWire_ResetSearch(OneWire_t* OneWireStruct);
-uint8_t OneWire_First(OneWire_t* OneWireStruct);
-uint8_t OneWire_Next(OneWire_t* OneWireStruct);
-void OneWire_GetFullROM(OneWire_t* OneWireStruct, uint8_t *firstIndex);
-void OneWire_Select(OneWire_t* OneWireStruct, uint8_t* addr);
-void OneWire_SelectWithPointer(OneWire_t* OneWireStruct, uint8_t* ROM);
-uint8_t OneWire_CRC8(uint8_t* addr, uint8_t len);
+void OneWire_Init(OneWire_t *OneWireStruct, GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin);
+uint8_t OneWire_Reset(OneWire_t *OneWireStruct);
+uint8_t OneWire_ReadByte(OneWire_t *OneWireStruct);
+void OneWire_WriteByte(OneWire_t *OneWireStruct, uint8_t byte);
+void OneWire_WriteBit(OneWire_t *OneWireStruct, uint8_t bit);
+uint8_t OneWire_ReadBit(OneWire_t *OneWireStruct);
+uint8_t OneWire_Search(OneWire_t *OneWireStruct, uint8_t command);
+void OneWire_ResetSearch(OneWire_t *OneWireStruct);
+uint8_t OneWire_First(OneWire_t *OneWireStruct);
+uint8_t OneWire_Next(OneWire_t *OneWireStruct);
+void OneWire_GetFullROM(OneWire_t *OneWireStruct, uint8_t *firstIndex);
+void OneWire_Select(OneWire_t *OneWireStruct, uint8_t *addr);
+void OneWire_SelectWithPointer(OneWire_t *OneWireStruct, uint8_t *ROM);
+uint8_t OneWire_CRC8(uint8_t *addr, uint8_t len);
 
 //------------------------------------------------------------------------
 

@@ -12,10 +12,6 @@
 #define MAX_SQREC 8//64//16
 
 
-//#ifdef SET_STATIC_MEM
-//	char PrnBuf[MAX_UART_BUF];// Служебный буфер для функции Report()
-//#endif
-
 //------------------------------------------------------------------------
 
 #ifdef SET_FLOAT_PART
@@ -41,7 +37,6 @@ typedef struct s_recq_t {
 } s_recq_t;
 #pragma pack(pop)
 
-
 //------------------------------------------------------------------------
 
 #ifdef USED_FREERTOS
@@ -56,6 +51,7 @@ extern volatile uint32_t HalfSecCounter;
 extern int8_t tZone;
 
 //------------------------------------------------------------------------
+
 #ifdef SET_FLOAT_PART
 	extern void floatPart(float val, s_float_t *part);
 #endif
@@ -71,8 +67,6 @@ bool check_tmr(uint32_t sec);
 uint64_t get_hstmr(uint64_t hs);
 bool check_hstmr(uint64_t hs);
 
-void gsmReset();
-
 #ifdef SET_SMS
 	#ifdef SET_SMS_QUEUE
 		bool initSRECQ(s_recq_t *q);
@@ -83,7 +77,7 @@ void gsmReset();
 	#endif
 #endif
 
-bool initRECQ(s_recq_t *q);//s_recq_t recq;
+bool initRECQ(s_recq_t *q);
 bool clearRECQ(s_recq_t *q);
 int8_t putRECQ(char *adr, s_recq_t *q);
 int8_t getRECQ(char *dat, s_recq_t *q);
@@ -99,7 +93,6 @@ void prnRList();
 bool checkDT(char *str);
 int8_t parseEvent(char *in, void *g);
 #ifdef SET_SMS
-	//extern uint8_t hextobin(char st, char ml);
 	extern int ucs2_to_utf8(char *buf_in, uint8_t *udl, uint8_t *utf8);
 #endif
 void toUppers(char *st);

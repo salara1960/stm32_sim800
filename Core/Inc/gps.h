@@ -16,6 +16,7 @@ enum {
 	ixGNVTG
 };
 
+//  Структура с переменными для запоминания данных геолокации
 #pragma pack(push,1)
 typedef struct {
     // calculated values
