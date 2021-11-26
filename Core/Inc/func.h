@@ -43,12 +43,9 @@ typedef struct s_recq_t {
 	uint32_t waitRTC;
 #endif
 
-extern volatile bool setDate;
-extern volatile uint32_t extDate;
 extern uint8_t uartRdy;
 extern volatile uint32_t secCounter;
 extern volatile uint32_t HalfSecCounter;
-extern int8_t tZone;
 
 //------------------------------------------------------------------------
 
@@ -57,6 +54,7 @@ extern int8_t tZone;
 #endif
 
 uint32_t get_secCounter();
+void set_secCounter(uint32_t sec);
 void inc_secCounter();
 uint32_t get_hsCounter();
 void inc_hsCounter();
@@ -84,8 +82,7 @@ int8_t getRECQ(char *dat, s_recq_t *q);
 void errLedOn(const char *from);
 void set_Date(time_t epoch);
 uint32_t get_Date();
-int sec_to_str_time(uint32_t sec, char *stx);
-int sec_to_string(uint32_t sec, char *stx);
+int sec_to_string(char *stx);
 uint8_t Report(const char *tag, bool addTime, const char *fmt, ...);
 bool set_DT();
 void prnFlags(void *g);
@@ -97,6 +94,7 @@ int8_t parseEvent(char *in, void *g);
 #endif
 void toUppers(char *st);
 uint16_t mkData(char *data);
+void parseACK(char *buf);
 
 //------------------------------------------------------------------------
 

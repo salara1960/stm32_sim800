@@ -82,7 +82,7 @@ osMutexId_t rtcMutexHandle;
 const osMutexAttr_t rtcMutex_attributes = {
   .name = "rtcMutex"
 };
-/* Definitions for sem */
+// Definitions for sem
 osSemaphoreId_t semHandle;
 const osSemaphoreAttr_t sem_attributes = {
   .name = "sem"
@@ -132,16 +132,17 @@ const osSemaphoreAttr_t sem_attributes = {
 //const char *version = "1.9.2 (22.11.2021)";//minor changes for sending json_data to external tcp server
 //const char *version = "1.9.3 (23.11.2021)";
 //const char *version = "1.9.4 (24.11.2021)"; //minor changes in +cusd parser and add local commands (via uart)
-const char *version = "1.9.5 (25.11.2021)";
+//const char *version = "1.9.5 (25.11.2021)";
+const char *version = "1.9.6 (26.11.2021)";
 
 
-volatile time_t epoch = 1637870245;//1637768795;//1637673169;
+volatile time_t epoch = 1637916982;//1637870245;//1637768795;//1637673169;
 						//1637608799;//1637500605;//1637421807;//1637342030;//1637171390;//1637156150;//1637080774;//1637006802;
 						//1636985372;//1636907840;//1636714630;//1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
 						//1636208753;//1636148268;//1636114042;//1636106564;//1636045527;//1636022804;//1635975820;//1635956750;
 						//1635854199;//1635762840;//1635701599;//1635681180;//1635627245;//1635505880;//1635001599;//1634820289;
 
-int8_t tZone = 2;	// time zone when set date/time
+int tZone = TZONE;	// time zone when set date/time
 volatile uint32_t cnt_err = 0;
 //     Флаги событий
 volatile uint8_t restart_flag = 0;
@@ -238,6 +239,7 @@ char sntpDT[24] = {0};
 volatile bool gsmInit = false;
 volatile bool sntpInit = false;
 volatile bool netInit = false;
+uint32_t packNumber = 0;
 
 char *cmds = NULL;
 char *cusd = NULL;
@@ -1107,6 +1109,7 @@ void serialLOG()
 						*uke = '\0';
 					} else tZone = 0;
 					extDate = atol(uk);
+					//if (tZone) extDate += (tZone * 60);
 					set_Date((time_t)extDate);
 				}
 			} else setDate = true;
@@ -1139,10 +1142,16 @@ void serialLOG()
 		} else if (strstr(RxBuf, _ini)) {
 			if (!ini_flag && !gsmFlags.busy) ini_flag = 1;
 		} else if (strstr(RxBuf, _stop)) {
-			if (gsmFlags.connect) strcpy(RxBuf, cmd_any[cCLOSE].cmd);
-			                 else strcpy(RxBuf, cmd_any[cFMCLOSE].cmd);
-			prn_cmd = true;
-			mk_at = true;
+			if (gsmFlags.connect) {
+				strcpy(RxBuf, cmd_any[cCLOSE].cmd);
+				prn_cmd = true;
+				mk_at = true;
+			} else if (gsmFlags.play) {
+				gsmFlags.play = 0;
+				strcpy(RxBuf, cmd_any[cFMCLOSE].cmd);
+				prn_cmd = true;
+				mk_at = true;
+			}
 		}
 #ifdef SET_GPS
 		else if (strstr(RxBuf, _ongps)) {
@@ -1377,7 +1386,7 @@ void StartDefaultTask(void *argument)
 		//-----   блок обработки секундного события   -----
 		if (check_tmr10(cur_sec)) {
 			cur_sec = get_tmr10(_900ms);
-			sec_to_str_time(cur_sec, scr);
+			sec_to_string(scr);
 			i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, 1, true);
 			if (dsOK != sensPresent) {
 				dsOK = sensPresent;
@@ -1452,6 +1461,7 @@ void StartDefaultTask(void *argument)
 					go = false;
 					gsmInit = sntpInit = false;
 					netInit = false;
+					HAL_GPIO_WritePin(CON_LED_GPIO_Port, CON_LED_Pin, GPIO_PIN_SET);
 
 					Report(NULL, true, "Restart main loop !\r\n");
 					i2c_ssd1306_clear_lines(at_line, elin);
@@ -1464,6 +1474,13 @@ void StartDefaultTask(void *argument)
 
 					continue;
 				}
+				//-----   Анализ данных от стороннего tcp сервера   -----
+				if (gsmFlags.connect) {
+					if (gsmFlags.ack) {
+						gsmFlags.ack = 0;
+						parseACK(buf2);
+					}
+				}//------------------------------------------------------
 				//-----   Блок отправки данных стороннему серверу через установленное tcp-соединения   -----
 				if (gsmFlags.prompt) {//send json_data to external tcp server
 					gsmFlags.prompt = 0;
@@ -1670,6 +1687,7 @@ void StartDefaultTask(void *argument)
 												}
 												lens = sprintf(cmdBuf, "%s%u%s", uk_cmd, fr, eol);
 												uk_cmd = &cmdBuf[0];
+												gsmFlags.play = 1;
 											}
 										break;
 										case seqNet:
@@ -2007,7 +2025,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   else if (htim->Instance == TIM3) {// период срабатывания 10 мсек.
 	  HalfSecCounter++;//+10ms
 	  if (!(HalfSecCounter % _1s)) {//seconda
-		  secCounter++;
+		  inc_secCounter();//secCounter++;
 		  if (screenON) {
 			  HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);//set ON/OFF LED1
 		  } else {

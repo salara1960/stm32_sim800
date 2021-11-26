@@ -230,7 +230,7 @@ enum {
 #define PASSWORD "beeline"
 #define SNTP     "pool.ntp.org"
 #define TZONE    2
-#define SRV_ADR  "91.109.136.149"//"213.149.30.207"
+#define SRV_ADR  "31.192.148.7"//"91.109.136.149"//"213.149.30.207"
 //"91.109.152.236"//"185.251.218.16"//"37.60.208.11"//"109.111.142.31"//"91.109.152.100"//"91.109.132.11"
 #define SRV_PORT 8778
 
@@ -296,9 +296,11 @@ typedef struct {
 	unsigned int send:1;
 	unsigned int sendOK:1;
 	unsigned int busy:1;
+	unsigned int ack:1;
+	unsigned int play:1;
 	unsigned int error:1;
 	unsigned int ok:1;
-	unsigned int none:3;
+	unsigned int none:1;
 } gsmFlags_t;
 #pragma pack(pop)
 
@@ -376,6 +378,7 @@ void Error_Handler(void);
 	osMutexId_t rtcMutexHandle;
 #endif
 
+int tZone;
 volatile bool setDate;
 volatile uint32_t extDate;
 UART_HandleTypeDef *portLOG;//порт логов (uart)
@@ -415,6 +418,7 @@ osStatus_t coreStatus;
 
 uint32_t tmr_send;
 const uint32_t send_period;
+uint32_t packNumber;
 
 #ifdef SET_SMS
 	#define len_From 32

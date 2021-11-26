@@ -9,7 +9,7 @@
 //******************************************************************************************
 
 #ifdef USED_FREERTOS
-	uint32_t waitRTC = 200;
+	uint32_t waitRTC = 250;
 #endif
 
 //-----------------------------------------------------------------------------
@@ -27,6 +27,11 @@ void floatPart(float val, s_float_t *part)
 uint32_t get_secCounter()
 {
 	return secCounter;
+}
+//----------------------------------------------
+void set_secCounter(uint32_t sec)
+{
+	secCounter = sec;
 }
 //----------------------------------------------
 void inc_secCounter()
@@ -232,17 +237,12 @@ uint16_t txt_len = strlen(txt);
 //
 bool initRECQ(s_recq_t *q)//s_recq_t recq;
 {
-	//if (osSemaphoreAcquire(mainBinSemHandle, 100) == osOK) {
-
-		q->put = q->get = 0;
-		q->lock = 0;
-		for (uint8_t i = 0; i < MAX_QREC; i++) {
-			q->rec[i].id = i;
-			q->rec[i].adr = NULL;
-		}
-
-		//osSemaphoreRelease(mainBinSemHandle);
-	//}
+	q->put = q->get = 0;
+	q->lock = 0;
+	for (uint8_t i = 0; i < MAX_QREC; i++) {
+		q->rec[i].id = i;
+		q->rec[i].adr = NULL;
+	}
 
 	return true;
 }
@@ -251,20 +251,15 @@ bool initRECQ(s_recq_t *q)//s_recq_t recq;
 //
 bool clearRECQ(s_recq_t *q)
 {
-	//if (osSemaphoreAcquire(mainBinSemHandle, 100) == osOK) {
-
 	while (q->lock) {}
 	q->lock = 1;
 
-		q->put = q->get = 0;
-		for (uint8_t i = 0; i < MAX_QREC; i++) {
-			q->rec[i].id = i;
-			free(q->rec[i].adr);//freeMem(q->rec[i].adr);
-			q->rec[i].adr = NULL;
-		}
-
-		//osSemaphoreRelease(mainBinSemHandle);
-	//}
+	q->put = q->get = 0;
+	for (uint8_t i = 0; i < MAX_QREC; i++) {
+		q->rec[i].id = i;
+		free(q->rec[i].adr);//freeMem(q->rec[i].adr);
+		q->rec[i].adr = NULL;
+	}
 
 	q->lock = 0;
 
@@ -274,23 +269,17 @@ bool clearRECQ(s_recq_t *q)
 //                 Функция добавляет сообщение в очередь
 //
 int8_t putRECQ(char *adr, s_recq_t *q)
-//int8_t putRECQ(uint16_t dat, s_recq_t *q)
 {
 int8_t ret = -1;
-
-	//if (osSemaphoreAcquire(mainBinSemHandle, 10) == osOK) {
 
 	while (q->lock) {}
 	q->lock = 1;
 
-		if (q->rec[q->put].adr == NULL) {
-			q->rec[q->put].adr = adr;
-			ret = q->rec[q->put].id;
-			q->put++;   if (q->put >= MAX_QREC) q->put = 0;
-		}
-
-		//osSemaphoreRelease(mainBinSemHandle);
-	//}
+	if (q->rec[q->put].adr == NULL) {
+		q->rec[q->put].adr = adr;
+		ret = q->rec[q->put].id;
+		q->put++;   if (q->put >= MAX_QREC) q->put = 0;
+	}
 
 	q->lock = 0;
 
@@ -301,32 +290,25 @@ int8_t ret = -1;
 //       освобождая при этом динамическую символьную строку
 //
 int8_t getRECQ(char *dat, s_recq_t *q)
-//int8_t getRECQ(uint16_t *dat, s_recq_t *q)
 {
 int8_t ret = -1;
 int len = 0;
 
-	//if (osSemaphoreAcquire(mainBinSemHandle, 0) == osOK) {
-
 	while (q->lock) {}
 	q->lock = 1;
 
-		if (q->rec[q->get].adr != NULL) {
-			len = strlen(q->rec[q->get].adr);
-			ret = q->rec[q->get].id;
-			memcpy(dat, q->rec[q->get].adr, len);
-			free(q->rec[q->get].adr);//freeMem(q->rec[q->get].adr);
-			q->rec[q->get].adr = NULL;
-		}
+	if (q->rec[q->get].adr != NULL) {
+		len = strlen(q->rec[q->get].adr);
+		ret = q->rec[q->get].id;
+		memcpy(dat, q->rec[q->get].adr, len);
+		free(q->rec[q->get].adr);//freeMem(q->rec[q->get].adr);
+		q->rec[q->get].adr = NULL;
+	}
 
-		if (ret >= 0) {
-			*(dat + len) = '\0';
-			q->get++;   if (q->get >= MAX_QREC) q->get = 0;
-		}
-
-		//osSemaphoreRelease(mainBinSemHandle);
-
-	//}
+	if (ret >= 0) {
+		*(dat + len) = '\0';
+		q->get++;   if (q->get >= MAX_QREC) q->get = 0;
+	}
 
 	q->lock = 0;
 
@@ -348,6 +330,7 @@ void errLedOn(const char *from)
 //
 void set_Date(time_t ep)
 {
+
 bool yes = false;
 RTC_TimeTypeDef sTime;
 RTC_DateTypeDef sDate;
@@ -387,15 +370,15 @@ bool os_core = false;
 #endif
 
 	if (yes) setDate= true;
+
 }
 //------------------------------------------------------------------------------------------
 //       Функция возвращает текущее время (в формате epochtime) из модуля RTC
 //
 uint32_t get_Date()
 {
-	if (!setDate) return get_tmr(0);
 
-	struct tm ts;
+	if (!setDate) return get_tmr(0);
 
 	RTC_TimeTypeDef sTime = {0};
 	RTC_DateTypeDef sDate = {0};
@@ -403,68 +386,34 @@ uint32_t get_Date()
 	if (osMutexAcquire(rtcMutexHandle, waitRTC) == osOK) {
 #endif
 		if (HAL_RTC_GetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) return get_tmr(0);
-		ts.tm_hour = sTime.Hours;
-		ts.tm_min  = sTime.Minutes;
-		ts.tm_sec  = sTime.Seconds;
 
 		if (HAL_RTC_GetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) return get_tmr(0);
-		ts.tm_wday = sDate.WeekDay;
-		ts.tm_mon  = sDate.Month - 1;
-		ts.tm_mday = sDate.Date;
-		ts.tm_year = sDate.Year;
+
 #ifdef USED_FREERTOS
 		osMutexRelease(rtcMutexHandle);
 	}
 #endif
 
+	struct tm ts;
+
+	ts.tm_hour = sTime.Hours;
+	ts.tm_min  = sTime.Minutes;
+	ts.tm_sec  = sTime.Seconds;
+	ts.tm_wday = sDate.WeekDay;
+	ts.tm_mon  = sDate.Month - 1;
+	ts.tm_mday = sDate.Date;
+	ts.tm_year = sDate.Year;
+
 	return ((uint32_t)mktime(&ts));
-}
-//------------------------------------------------------------------------------------
-//   Функция формирует символьную строку с датой и временем из значения epochtime
-//         и возвращает длинну сформированной символьной строки
-//
-int sec_to_str_time(uint32_t sec, char *stx)
-{
-int ret = 0;
-bool yes = false;
 
-	if (!setDate) {//no valid date in RTC
-		uint32_t day = sec / (60 * 60 * 24);
-		sec %= (60 * 60 * 24);
-		uint32_t hour = sec / (60 * 60);
-		sec %= (60 * 60);
-		uint32_t min = sec / (60);
-		sec %= 60;
-		ret = sprintf(stx, "%lu.%02lu:%02lu:%02lu", day, hour, min, sec);
-	} else {//in RTC valid date (epoch time)
-		RTC_TimeTypeDef sTime;
-		RTC_DateTypeDef sDate;
-#ifdef USED_FREERTOS
-		if (osMutexAcquire(rtcMutexHandle, waitRTC) == osOK) {
-#endif
-			if (HAL_RTC_GetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;//errLedOn(__func__);
-			else {
-				if (HAL_RTC_GetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;////errLedOn(__func__);
-				else {
-					yes = true;
-				}
-			}
-#ifdef USED_FREERTOS
-			osMutexRelease(rtcMutexHandle);
-		}
-#endif
-		if (yes) ret = sprintf(stx, "%02u.%02u %02u:%02u:%02u",
-			   	   	   	   	   	   sDate.Date, sDate.Month, sTime.Hours, sTime.Minutes, sTime.Seconds);
-	}
-
-	return ret;
 }
 //----------------------------------------------------------------------------------------
 //   Функция формирует символьную строку с датой и временем из значения epochtime
 //         и возвращает длинну сформированной символьной строки
 //
-int sec_to_string(uint32_t sec, char *stx)
+int sec_to_string(char *stx)
 {
+
 int ret = 0;
 bool yes = false;
 
@@ -473,9 +422,9 @@ bool yes = false;
 #ifdef USED_FREERTOS
 	if (osMutexAcquire(rtcMutexHandle, waitRTC) == osOK) {
 #endif
-		if (HAL_RTC_GetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;//errLedOn(__func__);
+		if (HAL_RTC_GetDate(portRTC, &sDate, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
 		else {
-			if (HAL_RTC_GetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;//errLedOn(__func__);
+			if (HAL_RTC_GetTime(portRTC, &sTime, RTC_FORMAT_BIN) != HAL_OK) devError |= devRTC;
 			else {
 				yes = true;
 			}
@@ -484,8 +433,12 @@ bool yes = false;
 		osMutexRelease(rtcMutexHandle);
 	}
 #endif
+	if (sTime.Hours > 23) sTime.Hours -= 20;
 	if (yes) ret = sprintf(stx, "%02u.%02u %02u:%02u:%02u ",
-								sDate.Date, sDate.Month, sTime.Hours, sTime.Minutes, sTime.Seconds);
+								sDate.Date, sDate.Month,
+								sTime.Hours, sTime.Minutes, sTime.Seconds);
+
+
 
     return ret;
 }
@@ -513,12 +466,8 @@ int dl = 0;
 	char *buff = (char *)getMem(len);
 	if (buff) {
 #endif
-		if (addTime) {
-			uint32_t ep;
-			if (!setDate) ep = get_secCounter();
-					 else ep = extDate;
-			dl = sec_to_string(ep, buff);
-		}
+		if (addTime) dl = sec_to_string(buff);
+
 		if (tag) dl += sprintf(buff+strlen(buff), "[%s] ", tag);
 		va_start(args, fmt);
 		vsnprintf(buff + dl, len - dl, fmt, args);
@@ -542,25 +491,7 @@ int dl = 0;
 bool set_DT()
 {
 bool ret = false;
-/*
-struct tm ts = {
-	.tm_hour = DT.hour,
-	.tm_min  = DT.min,
-	.tm_sec  = DT.sec,
-	.tm_wday = 0,
-	.tm_mon  = DT.mon - 1,
-	.tm_mday = DT.day,
-	.tm_year = DT.year
-};
 
-	time_t ep = mktime(&ts);
-	if ((uint32_t)ep >= (uint32_t)epoch) {
-		tZone = 0;
-		set_Date(ep);
-		tZone = DT.tz;
-		ret = true;
-	}
-*/
 RTC_TimeTypeDef sTime;
 RTC_DateTypeDef sDate;
 
@@ -568,6 +499,7 @@ RTC_DateTypeDef sDate;
 	sDate.Month   = DT.mon;
 	sDate.Date    = DT.day;
 	sDate.Year    = DT.year;
+
 	sTime.Hours   = DT.hour;// + tZone;
 	sTime.Minutes = DT.min;
 	sTime.Seconds = DT.sec;
@@ -600,11 +532,11 @@ void prnFlags(void *g)
 	Report(NULL,
 		   true,
 		   "Flags:\n\trdy:%u\n\tcFun:%u\n\tcPin:%u\n\tCallReady:%u\n\tSMSReady:%u\n\tbegin:%u\n\treg:%u\n\tcGat:%u\n\tcmee:%u\n"
-		   "\tcntp:%u\n\tokDT:%u\n\tstate:%s\n\tconnect:%u\n\tfail:%u\n\tclosed:%u\n\tshut:%u\n\tbusy:%u\n\terror:%u\n\tok:%u\n"
-		   "\tsntpSRV:'%s'\n\tsntpDT:'%s'\n\timei:%s\n\tVcc:%u mv\r\n",
+		   "\tcntp:%u\n\tokDT:%u\n\tstate:%s\n\tconnect:%u\n\tfail:%u\n\tclosed:%u\n\tshut:%u\n\tbusy:%u\n\tack:%u\n\tplay:%u"
+		   "\terror:%u\n\tok:%u\n\tsntpSRV:'%s'\n\tsntpDT:'%s'\n\timei:%s\n\tVcc:%u mv\r\n",
 		   gf->rdy, gf->cFun, gf->cPin, gf->cReady, gf->sReady, gf->begin, gf->reg, gf->cGat, gf->cmee,
 		   gf->tReady, gf->okDT, gsmState[gf->state], gf->connect,
-		   gf->fail, gf->closed, gf->shut, gf->busy, gf->error, gf->ok,
+		   gf->fail, gf->closed, gf->shut, gf->busy, gf->ack, gf->play, gf->error, gf->ok,
 		   cntpSRV, sntpDT, gsmIMEI, VCC);
 }
 //------------------------------------------------------------------------------------------
@@ -760,7 +692,7 @@ int i, j, k;
 					if (uki) *uki = '\0';
 					strncpy(sntpDT, uks, sizeof(sntpDT) - 1);
 					//
-					if (gf->tReady) {
+					//if (gf->tReady) {
 						if (checkDT(sntpDT)) {
 							gf->reqDT = 1;
 							if (set_DT()) {
@@ -770,7 +702,7 @@ int i, j, k;
 										DT.day, DT.mon, DT.year, DT.hour, DT.min, DT.sec, DT.tz);
 							}
 						}
-					}
+					//}
 					//
 				}
 			break;
@@ -944,6 +876,8 @@ int i, j, k;
 				}
 				indList++;
 			}
+		} else if (gf->sendOK) {
+			if (strlen(in)) gf->ack = 1;
 		}
 #endif
 	}
@@ -967,8 +901,8 @@ int i;
 uint16_t mkData(char *data)
 {
 s_float_t flo = {0, 0};
-
-	sprintf(data, "{\"dev\":\"%s\"", dev_name);
+//"MsgType": "+CGNSINF",
+	sprintf(data, "{\"DevName\":\"%s\",\"PackNumber\":%lu", dev_name, ++packNumber);
 #ifdef SET_TEMP_SENSOR
 	floatPart(temp, &flo); sprintf(data+strlen(data), ",\"temp\":%lu.%lu", flo.cel, flo.dro / 10000);
 #endif
@@ -984,6 +918,12 @@ s_float_t flo = {0, 0};
 	return (uint16_t)strlen(data);
 }
 //-----------------------------------------------------------------------------------------
+// Функция анализа данных от стороннего tcp сервера
+//
+void parseACK(char *buf)
+{
+	//Report(__func__, true, "%s%s", buf, eol);
+}
 //-----------------------------------------------------------------------------------------
 
 
