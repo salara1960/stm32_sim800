@@ -136,7 +136,7 @@ const osSemaphoreAttr_t sem_attributes = {
 const char *version = "1.9.6 (26.11.2021)";
 
 
-volatile time_t epoch = 1637916982;//1637870245;//1637768795;//1637673169;
+volatile time_t epoch = 1637954401;//1637916982;//1637870245;//1637768795;//1637673169;
 						//1637608799;//1637500605;//1637421807;//1637342030;//1637171390;//1637156150;//1637080774;//1637006802;
 						//1636985372;//1636907840;//1636714630;//1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
 						//1636208753;//1636148268;//1636114042;//1636106564;//1636045527;//1636022804;//1635975820;//1635956750;
@@ -163,7 +163,7 @@ const char *_radio = "radio";
 const char *_rlist = "rlist";
 const char *_rnext = "rnext";
 const char *_flags = "flags";
-const char *_freemem = "freemem";
+const char *_freemem = "free";
 const char *_net  = "net";
 const char *_ini  = "ini";
 const char *_stop  = "stop";
@@ -1078,9 +1078,9 @@ void errNameStr(uint8_t er, char *st)
 	if (er & devRTC)  strcat(st, " RTC");//  = 8,
 	if (er & devMem)  strcat(st, " Mem");//  = 0x10,
 	if (er & devGSM)  strcat(st, " GSM");//  = 0X20,
-	if (er & devQue)  strcat(st, " Que");//  = 0x40
+	if (er & devQue)  strcat(st, " Que");// = 0x40
 #ifdef SET_GPS
-	if (er & devCRC)  strcat(st, " CRC");//  = 0x80
+	if (er & devCRC)  strcat(st, " CRC");//  = 0x100
 #endif
 	if (!strlen(st)) sprintf(st,"err : 0x%02X", er);
 }
@@ -1236,13 +1236,11 @@ void serialGPS()
 					char *gf = (char *)calloc(1, len + 1);
 					if (gf) {
 						// Блок помещает в очередь данные, полученные от GPS модуля
-						if (strlen(gf) != (len + 1)) {
-							memcpy(gf, gpsBuf, len);
-							if (putRECQ(gf, &gpsFrom) < 0) {
-								devError |= devQue;
-								free(gf);
-							}
-						} else devError |= devMem;
+						memcpy(gf, gpsBuf, len);
+						if (putRECQ(gf, &gpsFrom) < 0) {
+							devError |= devQue;
+							free(gf);
+						}
 						//---------------------------------------------------------
 					} else devError |= devMem;
 				}
@@ -1880,7 +1878,7 @@ void StartDefaultTask(void *argument)
 							floatPart(GPS.dec_longitude,&flo);  sprintf(scr+strlen(scr),"%02lu.%04lu", flo.cel, flo.dro / 100);
 							floatPart(GPS.msl_altitude,  &flo); sprintf(scr+strlen(scr),"\n sat:%d alt:%lu",GPS.satelites, flo.cel);
 							i2c_ssd1306_text_xy(scr, 1, cor_line, false);
-							gps_tmr = get_tmr10(_950ms);
+							gps_tmr = get_tmr10(_700ms);//_950ms);
 							//
 						}
 					}//-----------------------------------------------------------------------------------------------------
