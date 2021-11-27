@@ -532,7 +532,7 @@ void prnFlags(void *g)
 	Report(NULL,
 		   true,
 		   "Flags:\n\trdy:%u\n\tcFun:%u\n\tcPin:%u\n\tCallReady:%u\n\tSMSReady:%u\n\tbegin:%u\n\treg:%u\n\tcGat:%u\n\tcmee:%u\n"
-		   "\tcntp:%u\n\tokDT:%u\n\tstate:%s\n\tconnect:%u\n\tfail:%u\n\tclosed:%u\n\tshut:%u\n\tbusy:%u\n\tack:%u\n\tplay:%u"
+		   "\tcntp:%u\n\tokDT:%u\n\tstate:%s\n\tconnect:%u\n\tfail:%u\n\tclosed:%u\n\tshut:%u\n\tbusy:%u\n\tack:%u\n\tplay:%u\n"
 		   "\terror:%u\n\tok:%u\n\tsntpSRV:'%s'\n\tsntpDT:'%s'\n\timei:%s\n\tVcc:%u mv\r\n",
 		   gf->rdy, gf->cFun, gf->cPin, gf->cReady, gf->sReady, gf->begin, gf->reg, gf->cGat, gf->cmee,
 		   gf->tReady, gf->okDT, gsmState[gf->state], gf->connect,
@@ -925,7 +925,34 @@ void parseACK(char *buf)
 	//Report(__func__, true, "%s%s", buf, eol);
 }
 //-----------------------------------------------------------------------------------------
+//          Функция поиска номера группа и индекса в группе для АТ команды
+//  При успешном поиске возвращает адрес строки с ожидаемым ответом в противном случае NULL
+//
+const char *findCmd(char *buf, int8_t *grp, int8_t *cur)
+{
+int8_t i, k;
+const char *adr = NULL;
+char *uk = NULL;
 
+	if ((uk = strstr(buf, eol)) != NULL) *uk = '\0';
+
+	int len = strlen(buf);
+
+	for (k = 0; k < MAX_CMD_INFO; k++) {
+		adr = cmd_info[k].cmd;
+		i = -1;
+		while (++i < cmd_info[k].total) {
+			if (!strncmp(buf, adr, len)) {
+				*grp = cmd_info[k].grp;
+				*cur = i;
+				return adr + (i * sizeof(ats_t)) + CMD_LEN;
+			} else adr += sizeof(ats_t);
+		}
+	}
+
+	return NULL;
+}
+//-----------------------------------------------------------------------------------------
 
 //******************************************************************************************
 

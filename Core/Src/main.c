@@ -133,10 +133,11 @@ const osSemaphoreAttr_t sem_attributes = {
 //const char *version = "1.9.3 (23.11.2021)";
 //const char *version = "1.9.4 (24.11.2021)"; //minor changes in +cusd parser and add local commands (via uart)
 //const char *version = "1.9.5 (25.11.2021)";
-const char *version = "1.9.6 (26.11.2021)";
+//const char *version = "1.9.6 (26.11.2021)";
+const char *version = "1.9.7 (27.11.2021)";// Use parser answer from GSM module for enter AT commands via local channel (uart)
 
 
-volatile time_t epoch = 1637954401;//1637916982;//1637870245;//1637768795;//1637673169;
+volatile time_t epoch = 1638033160;//1637954401;//1637916982;//1637870245;//1637768795;//1637673169;
 						//1637608799;//1637500605;//1637421807;//1637342030;//1637171390;//1637156150;//1637080774;//1637006802;
 						//1636985372;//1636907840;//1636714630;//1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
 						//1636208753;//1636148268;//1636114042;//1636106564;//1636045527;//1636022804;//1635975820;//1635956750;
@@ -167,6 +168,7 @@ const char *_freemem = "free";
 const char *_net  = "net";
 const char *_ini  = "ini";
 const char *_stop  = "stop";
+const char *_clr  = "clr";
 //     флаги команд локального канала управления (uart)
 volatile bool prn_flags = false;
 volatile bool prn_freemem = false;
@@ -398,6 +400,14 @@ int cmdID = -1;
 int evtID = -1;
 
 osStatus_t coreStatus = osError;
+
+const cmd_info_t cmd_info[MAX_CMD_INFO] = {
+	{&cmd_ini[0].cmd[0],   seqInit,  cmd_iniMax},
+	{&cmd_time[0].cmd[0],  seqTime,  cmd_timeMax},
+	{&cmd_net[0].cmd[0],   seqNet,   cmd_netMax},
+	{&cmd_radio[0].cmd[0], seqRadio, cmd_radioMax},
+	{&cmd_any[0].cmd[0],   seqAny,   cmd_anyMax}
+};
 
 
 /* USER CODE END PV */
@@ -1152,6 +1162,8 @@ void serialLOG()
 				prn_cmd = true;
 				mk_at = true;
 			}
+		} else if (strstr(RxBuf, _clr)) {
+			devError = 0;
 		}
 #ifdef SET_GPS
 		else if (strstr(RxBuf, _ongps)) {
@@ -1412,7 +1424,6 @@ void StartDefaultTask(void *argument)
 			if (getRECQ(buf, &gsmTo) >= 0) {
 				if (HAL_UART_Transmit_DMA(portGSM, (uint8_t *)buf, strlen(buf)) != HAL_OK) devError |= devUART;
 				else {
-					//if (devError & devUART) devError &= ~ devUART;
 					if (strstr(buf, cmd_radio[fSCAN].cmd)) {
 						gsmFlags.rlist = 1;
 						indList = 0;
@@ -1421,10 +1432,16 @@ void StartDefaultTask(void *argument)
 				}
 				if (prn_cmd) Report(NULL, false, "%s", buf);
 #ifdef SET_OLED_I2C
+				strcpy(scr, buf);
 				i2c_ssd1306_clear_line(at_line);
-				if (strlen(buf) > MAX_FONT_CHAR) buf[MAX_FONT_CHAR] = '\0';
-				i2c_ssd1306_text_xy(buf, 1, at_line, false);
+				if (strlen(scr) > MAX_FONT_CHAR) scr[MAX_FONT_CHAR] = '\0';
+				i2c_ssd1306_text_xy(scr, 1, at_line, false);
 #endif
+				if (!at_auto) {
+					if ((uk_ack = findCmd(buf, &grp_cmd, &cur_cmd)) != NULL) {
+						//Report(NULL, true, "Command finded : grp_cmd=%d cur_cmd=%d%s", grp_cmd, cur_cmd, eol);
+					}
+				}
 			}
 		}
 		//-----------------------------------------------------------------------
@@ -1494,24 +1511,28 @@ void StartDefaultTask(void *argument)
 					}
 				}
 				//-------------------------------------------------------------------------------------------
-
 				// Для режима авто - частиный анализ полученных от GSM модуля данных (сообщений)
-				if (at_auto) {
+//				if (at_auto) {
 					if (uk_ack) {
 						if (strstr(buf2, uk_ack)) {
-							next_cmd = true;
-							tmr_next = get_tmr10(_200ms);
+							if (at_auto) {
+								next_cmd = true;
+								tmr_next = get_tmr10(_200ms);
+							}
 							bool repeat = false;
-
 							switch (cur_cmd) {
 								case iCREG:
 									if (grp_cmd == seqInit) {
-										if (!gsmFlags.reg) repeat = true;
+										if (at_auto) {
+											if (!gsmFlags.reg) repeat = true;
+										}
 									}
 								break;
 								case iCSQ:
 									if (grp_cmd == seqInit) {
-										if (gsmRSSI <= dBmRSSI[0]) repeat = true;
+										if (at_auto) {
+											if (gsmRSSI <= dBmRSSI[0]) repeat = true;
+										}
 									}
 								break;
 								case iCGATT:
@@ -1526,7 +1547,7 @@ void StartDefaultTask(void *argument)
 								tmr_ack = get_tmr10(0);
 							}
 						} else {
-							if (gsmFlags.error) {//example : +CME ERROR: 100
+							if (gsmFlags.error & at_auto) {//example : +CME ERROR: 100
 								next_cmd = false;
 								tmr_next = 0;
 								tmr_ack = get_tmr10(0);
@@ -1541,7 +1562,7 @@ void StartDefaultTask(void *argument)
 							}
 						}
 					}
-				}
+//				}
 				//-----------------------------------------------------------------------------------
 			}
 		}
@@ -1675,7 +1696,6 @@ void StartDefaultTask(void *argument)
 												gsmFlags.ropen = 0;
 											} else if (cur_cmd == fFREQ) {//{"AT+FMFREQ=","OK"}//,//1025 ; установить чатоту 102.5 Мгц | 1025 + eol
 												uint16_t fr = 1025;
-												//indList = 0;
 												while (indList < MAX_FREQ_LIST) {
 													if (freqList[indList]) {
 														fr = freqList[indList];
@@ -1709,13 +1729,10 @@ void StartDefaultTask(void *argument)
 											free(cmds);
 											cmds = NULL;
 										} else {
-											//if (devError & devQue) devError &= ~ devQue;
 											tmr_ack = get_tmr10(_15s);//wait answer from module 10 sec
 										}
-										//if (devError & devMem) devError &= ~ devMem;
-									} else {
-										devError |= devMem;
-									}
+									} else devError |= devMem;
+									//
 									if (devError) {
 										cmd_err = CMD_REPEAT;
 										cur_cmd = -1;
@@ -1724,7 +1741,6 @@ void StartDefaultTask(void *argument)
 										tmr_next = tmr_ack = 0;
 									}
 									prn_cmd = true;
-									//Report(NULL, false, uk_cmd);
 								} else {
 									cmd_err = CMD_REPEAT;
 									cur_cmd = -1;

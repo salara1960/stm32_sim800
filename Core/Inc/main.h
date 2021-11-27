@@ -325,6 +325,14 @@ typedef struct {//21/11/01,12:49:31+02
 #pragma pack(pop)
 
 
+#pragma pack(push,1)
+typedef struct {
+	const char *cmd;
+	int8_t grp;
+	int8_t total;
+} cmd_info_t;
+#pragma pack(pop)
+
 
 /* USER CODE END ET */
 
@@ -400,6 +408,15 @@ TIM_HandleTypeDef *tmrDS18B20;
 
 #define MAX_RSSI 32
 
+#define MAX_CMD_INFO 5
+
+const ats_t cmd_ini[cmd_iniMax];
+const ats_t cmd_time[cmd_timeMax];
+const ats_t cmd_net[cmd_netMax];
+const ats_t cmd_radio[cmd_radioMax];
+const ats_t cmd_any[cmd_anyMax];
+
+const cmd_info_t cmd_info[MAX_CMD_INFO];
 
 const char *gsmState[gsmStateMax];
 const char *gsmEvent[gsmEventMax];

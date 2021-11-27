@@ -95,6 +95,7 @@ int8_t parseEvent(char *in, void *g);
 void toUppers(char *st);
 uint16_t mkData(char *data);
 void parseACK(char *buf);
+const char *findCmd(char *buf, int8_t *grp, int8_t *cur);
 
 //------------------------------------------------------------------------
 
