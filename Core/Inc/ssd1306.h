@@ -7,6 +7,8 @@
 
 #if defined(SET_OLED_I2C) || defined(SET_OLED_SPI)
 
+#define SET_SSD1306_INVERT
+
 //------------------------------------------------------------------------
 
 // Control byte
@@ -80,7 +82,9 @@
 
 	void i2c_ssd1306_on(bool flag);
 	void i2c_ssd1306_init();
+#ifdef SET_SSD1306_INVERT
 	void i2c_ssd1306_invert();
+#endif
 	void i2c_ssd1306_clear();
 	void i2c_ssd1306_pattern(bool with);
 	void i2c_ssd1306_contrast(uint8_t value);

@@ -27,7 +27,7 @@ const uint32_t all_chipBLK[] = {
 };
 
 
-uint8_t pageTmp[PAGE_BUF_SIZE + PAGE_HDR_BYTES] = {0};
+uint8_t pageTmp[PAGE_BUF_SIZE + PAGE_HDR_BYTES + 1] = {0};
 
 uint8_t w25_withDMA = 0;
 
@@ -48,13 +48,25 @@ uint8_t ret;
     return ret;
 }
 //------------------------------------------------------------------------------------------
+void W25qxx_Reset(void)
+{
+	W25qxx_Delay(100);
+
+	W25_SELECT();
+		W25qxx_Spi(EN_RESET);
+		W25qxx_Spi(CHIP_RESET);
+	W25_UNSELECT();
+
+	W25qxx_Delay(100);
+}
+//------------------------------------------------------------------------------------------
 uint32_t W25qxx_ReadID(void)
 {
 uint32_t Temp[3] = {0};
 
     W25_SELECT();//set to 0
 
-    W25qxx_Spi(0x9F);
+    W25qxx_Spi(JEDEC_ID);
     Temp[0] = W25qxx_Spi(W25QXX_DUMMY_BYTE);
     Temp[1] = W25qxx_Spi(W25QXX_DUMMY_BYTE);
     Temp[2] = W25qxx_Spi(W25QXX_DUMMY_BYTE);
@@ -66,10 +78,10 @@ uint32_t Temp[3] = {0};
 //------------------------------------------------------------------------------------------
 void W25qxx_ReadUniqID(void)
 {
-	uint8_t dat[] = {0x4B, W25QXX_DUMMY_BYTE, W25QXX_DUMMY_BYTE, W25QXX_DUMMY_BYTE, W25QXX_DUMMY_BYTE};
+	uint8_t dat[] = {READ_UID, W25QXX_DUMMY_BYTE, W25QXX_DUMMY_BYTE, W25QXX_DUMMY_BYTE, W25QXX_DUMMY_BYTE};
     W25_SELECT();
 
-    //W25qxx_Spi(0x4B);
+    //W25qxx_Spi(READ_UID);
     //for (uint8_t i = 0; i < 4; i++) W25qxx_Spi(W25QXX_DUMMY_BYTE);
     //for (uint8_t i = 0; i < 8; i++) w25qxx.UniqID[i] = W25qxx_Spi(W25QXX_DUMMY_BYTE);
     HAL_SPI_Transmit(portFLASH, dat, sizeof(dat), min_wait_ms);
@@ -82,7 +94,7 @@ void W25qxx_WriteEnable(void)
 {
     W25_SELECT();
 
-    W25qxx_Spi(0x06);
+    W25qxx_Spi(WRITE_ENABLE);
 
     W25_UNSELECT();
 
@@ -93,7 +105,7 @@ void W25qxx_WriteDisable(void)
 {
     W25_SELECT();
 
-    W25qxx_Spi(0x04);
+    W25qxx_Spi(WRITE_DISABLE);
 
     W25_UNSELECT();
 
@@ -108,17 +120,17 @@ uint8_t status = 0;
 
     switch (SelectStatusReg) {
         case 1:
-            W25qxx_Spi(0x05);
+            W25qxx_Spi(READ_STAT_REG1);
             status = W25qxx_Spi(W25QXX_DUMMY_BYTE);
             w25qxx.StatusRegister1 = status;
         break;
         case 2:
-            W25qxx_Spi(0x35);
+            W25qxx_Spi(READ_STAT_REG2);
             status = W25qxx_Spi(W25QXX_DUMMY_BYTE);
             w25qxx.StatusRegister2 = status;
         break;
         default : {
-            W25qxx_Spi(0x15);
+            W25qxx_Spi(READ_STAT_REG3);
             status = W25qxx_Spi(W25QXX_DUMMY_BYTE);
             w25qxx.StatusRegister3 = status;
         }
@@ -135,15 +147,15 @@ void W25qxx_WriteStatusRegister(uint8_t SelectStatusReg, uint8_t Data)
 
     switch (SelectStatusReg) {
         case 1 :
-            W25qxx_Spi(0x01);
+            W25qxx_Spi(WRITE_STAT_REG1);
             w25qxx.StatusRegister1 = Data;
         break;
         case 2 :
-            W25qxx_Spi(0x31);
+            W25qxx_Spi(WRITE_STAT_REG2);
             w25qxx.StatusRegister2 = Data;
         break;
         default : {
-            W25qxx_Spi(0x11);
+            W25qxx_Spi(WRITE_STAT_REG3);
             w25qxx.StatusRegister3 = Data;
         }
     }
@@ -159,7 +171,7 @@ void W25qxx_WaitForWriteEnd(void)
 
     W25_SELECT();
 
-    W25qxx_Spi(0x05);
+    W25qxx_Spi(READ_STAT_REG1);
     do
     {
         w25qxx.StatusRegister1 = W25qxx_Spi(W25QXX_DUMMY_BYTE);
@@ -171,6 +183,10 @@ void W25qxx_WaitForWriteEnd(void)
 //------------------------------------------------------------------------------------------
 bool W25qxx_Init(void)
 {
+
+	W25qxx_Reset();
+
+
     w25qxx.Lock = 1;
     bool ret = false;
 
@@ -269,7 +285,7 @@ void W25qxx_EraseChip(void)
 
     W25_SELECT();
 
-    W25qxx_Spi(0xC7);
+    W25qxx_Spi(CHIP_ERASE);
 
     W25_UNSELECT();
 
@@ -289,18 +305,18 @@ void W25qxx_EraseSector(uint32_t SectorAddr)
 
     w25qxx.Lock = 1;
 
-#ifdef W25QXX_DEBUG
+//#ifdef W25QXX_DEBUG
     uint32_t StartTime = HAL_GetTick();
     Report(__func__, true, "%u Begin...", SectorAddr);
-#endif
+//#endif
 
     W25qxx_WaitForWriteEnd();
     SectorAddr = SectorAddr * w25qxx.SectorSize;
     W25qxx_WriteEnable();
 
     W25_SELECT();
-    W25qxx_Spi(0x20);
-    if (w25qxx.ID >= W25Q256) W25qxx_Spi((SectorAddr & 0xFF000000) >> 24);
+    W25qxx_Spi(SECTOR_ERASE);
+    //if (w25qxx.ID >= W25Q256) W25qxx_Spi((SectorAddr & 0xFF000000) >> 24);
     W25qxx_Spi((SectorAddr & 0xFF0000) >> 16);
     W25qxx_Spi((SectorAddr & 0xFF00) >> 8);
     W25qxx_Spi(SectorAddr & 0xFF);
@@ -308,10 +324,10 @@ void W25qxx_EraseSector(uint32_t SectorAddr)
 
     W25qxx_WaitForWriteEnd();
 
-#ifdef W25QXX_DEBUG
+//#ifdef W25QXX_DEBUG
     uint32_t dur = HAL_GetTick() - StartTime;
     Report(NULL, false, " done after %u ms (%u sec)!\r\n", dur, dur / 1000);
-#endif
+//#endif
     W25qxx_Delay(1);
 
     w25qxx.Lock = 0;
@@ -334,8 +350,8 @@ void W25qxx_EraseBlock(uint32_t BlockAddr)
     W25qxx_WriteEnable();
 
     W25_SELECT();
-    W25qxx_Spi(0xD8);
-    if(w25qxx.ID >= W25Q256) W25qxx_Spi((BlockAddr & 0xFF000000) >> 24);
+    W25qxx_Spi(BLOCK64_ERASE);
+    //if(w25qxx.ID >= W25Q256) W25qxx_Spi((BlockAddr & 0xFF000000) >> 24);
     W25qxx_Spi((BlockAddr & 0xFF0000) >> 16);
     W25qxx_Spi((BlockAddr & 0xFF00) >> 8);
     W25qxx_Spi(BlockAddr & 0xFF);
@@ -401,13 +417,13 @@ bool W25qxx_IsEmptyPage(uint32_t Page_Address, uint32_t OffsetInByte, uint32_t N
 
         W25_SELECT();
         WorkAddress = (i + Page_Address * w25qxx.PageSize);
-        W25qxx_Spi(0x0B);
-        if (w25qxx.ID >= W25Q256) W25qxx_Spi((WorkAddress & 0xFF000000) >> 24);
+        W25qxx_Spi(DATA_READ);//FAST_READ);
+        //if (w25qxx.ID >= W25Q256) W25qxx_Spi((WorkAddress & 0xFF000000) >> 24);
         W25qxx_Spi((WorkAddress & 0xFF0000) >> 16);
         W25qxx_Spi((WorkAddress & 0xFF00) >> 8);
         W25qxx_Spi(WorkAddress & 0xFF);
-        W25qxx_Spi(0);
-        HAL_SPI_Receive(portFLASH, pBuffer, sizeof(pBuffer), 100);
+        //W25qxx_Spi(0);
+        HAL_SPI_Receive(portFLASH, pBuffer, sizeof(pBuffer), min_wait_ms);
         W25_UNSELECT();
 
         for (uint8_t x = 0; x < sizeof(pBuffer); x++) {
@@ -420,13 +436,13 @@ bool W25qxx_IsEmptyPage(uint32_t Page_Address, uint32_t OffsetInByte, uint32_t N
 
         	W25_SELECT();
             WorkAddress = (i + Page_Address * w25qxx.PageSize);
-            W25qxx_Spi(0x0B);
-            if (w25qxx.ID >= W25Q256) W25qxx_Spi((WorkAddress & 0xFF000000) >> 24);
+            W25qxx_Spi(DATA_READ);//FAST_READ);
+            //if (w25qxx.ID >= W25Q256) W25qxx_Spi((WorkAddress & 0xFF000000) >> 24);
             W25qxx_Spi((WorkAddress & 0xFF0000) >> 16);
             W25qxx_Spi((WorkAddress & 0xFF00) >> 8);
             W25qxx_Spi(WorkAddress & 0xFF);
-            W25qxx_Spi(0);
-            HAL_SPI_Receive(portFLASH, pBuffer, 1, 100);
+            //W25qxx_Spi(0);
+            HAL_SPI_Receive(portFLASH, pBuffer, 1, min_wait_ms);
             W25_UNSELECT();
 
             if (pBuffer[0] != 0xFF) goto NOT_EMPTY;
@@ -476,13 +492,13 @@ bool W25qxx_IsEmptySector(uint32_t Sector_Address, uint32_t OffsetInByte, uint32
 
     	W25_SELECT();
         WorkAddress = (i + Sector_Address * w25qxx.SectorSize);
-        W25qxx_Spi(0x0B);
-        if (w25qxx.ID >= W25Q256) W25qxx_Spi((WorkAddress & 0xFF000000) >> 24);
+        W25qxx_Spi(DATA_READ);//FAST_READ);
+        //if (w25qxx.ID >= W25Q256) W25qxx_Spi((WorkAddress & 0xFF000000) >> 24);
         W25qxx_Spi((WorkAddress & 0xFF0000) >> 16);
         W25qxx_Spi((WorkAddress & 0xFF00) >> 8);
         W25qxx_Spi(WorkAddress & 0xFF);
-        W25qxx_Spi(0);
-        HAL_SPI_Receive(portFLASH, pBuffer, sizeof(pBuffer), 100);
+        //W25qxx_Spi(0);
+        HAL_SPI_Receive(portFLASH, pBuffer, sizeof(pBuffer), min_wait_ms);
         W25_UNSELECT();
 
         for (uint8_t x = 0; x < sizeof(pBuffer); x++) {
@@ -495,13 +511,13 @@ bool W25qxx_IsEmptySector(uint32_t Sector_Address, uint32_t OffsetInByte, uint32
 
             W25_SELECT();
             WorkAddress = (i + Sector_Address * w25qxx.SectorSize);
-            W25qxx_Spi(0x0B);
-            if (w25qxx.ID >= W25Q256) W25qxx_Spi((WorkAddress & 0xFF000000) >> 24);
+            W25qxx_Spi(DATA_READ);//FAST_READ);
+            //if (w25qxx.ID >= W25Q256) W25qxx_Spi((WorkAddress & 0xFF000000) >> 24);
             W25qxx_Spi((WorkAddress & 0xFF0000) >> 16);
             W25qxx_Spi((WorkAddress & 0xFF00) >> 8);
             W25qxx_Spi(WorkAddress & 0xFF);
-            W25qxx_Spi(0);
-            HAL_SPI_Receive(portFLASH, pBuffer, 1, 100);
+            //W25qxx_Spi(0);
+            HAL_SPI_Receive(portFLASH, pBuffer, 1, min_wait_ms);
             W25_UNSELECT();
 
             if (pBuffer[0] != 0xFF) goto NOT_EMPTY;
@@ -551,13 +567,13 @@ bool W25qxx_IsEmptyBlock(uint32_t Block_Address, uint32_t OffsetInByte, uint32_t
 
         W25_SELECT();
         WorkAddress = (i + Block_Address * w25qxx.BlockSize);
-        W25qxx_Spi(0x0B);
-        if (w25qxx.ID >= W25Q256) W25qxx_Spi((WorkAddress & 0xFF000000) >> 24);
+        W25qxx_Spi(DATA_READ);//FAST_READ);
+        //if (w25qxx.ID >= W25Q256) W25qxx_Spi((WorkAddress & 0xFF000000) >> 24);
         W25qxx_Spi((WorkAddress & 0xFF0000) >> 16);
         W25qxx_Spi((WorkAddress & 0xFF00) >> 8);
         W25qxx_Spi(WorkAddress & 0xFF);
-        W25qxx_Spi(0);
-        HAL_SPI_Receive(portFLASH, pBuffer, sizeof(pBuffer), 100);
+        //W25qxx_Spi(0);
+        HAL_SPI_Receive(portFLASH, pBuffer, sizeof(pBuffer), min_wait_ms);
         W25_UNSELECT();
 
         for (uint8_t x = 0; x < sizeof(pBuffer); x++) {
@@ -570,13 +586,13 @@ bool W25qxx_IsEmptyBlock(uint32_t Block_Address, uint32_t OffsetInByte, uint32_t
 
             W25_SELECT();
             WorkAddress = (i + Block_Address * w25qxx.BlockSize);
-            W25qxx_Spi(0x0B);
-            if (w25qxx.ID >= W25Q256) W25qxx_Spi((WorkAddress & 0xFF000000) >> 24);
+            W25qxx_Spi(DATA_READ);//FAST_READ);
+            //if (w25qxx.ID >= W25Q256) W25qxx_Spi((WorkAddress & 0xFF000000) >> 24);
             W25qxx_Spi((WorkAddress & 0xFF0000) >> 16);
             W25qxx_Spi((WorkAddress & 0xFF00) >> 8);
             W25qxx_Spi(WorkAddress & 0xFF);
-            W25qxx_Spi(0);
-            HAL_SPI_Receive(portFLASH, pBuffer, 1, 100);
+            //W25qxx_Spi(0);
+            HAL_SPI_Receive(portFLASH, pBuffer, 1, min_wait_ms);
             W25_UNSELECT();
 
             if (pBuffer[0] != 0xFF) goto NOT_EMPTY;
@@ -620,25 +636,25 @@ void W25qxx_WriteByte(uint8_t pBuffer, uint32_t WriteAddr_inBytes)
 
     uint8_t *uk = NULL;
     uint16_t len = 6;
-    if (w25qxx.ID >= W25Q256) {
-    	uint8_t dat[] = {2,
+    /*if (w25qxx.ID >= W25Q256) {
+    	uint8_t dat[] = {PAGE_PROG,
     			(uint8_t)((WriteAddr_inBytes & 0xFF000000) >> 24),
 				(uint8_t)((WriteAddr_inBytes & 0xFF0000) >> 16),
 				(uint8_t)((WriteAddr_inBytes & 0xFF00) >> 8),
 				(uint8_t)(WriteAddr_inBytes & 0xFF),
 				pBuffer};
         uk = &dat[0];
-    } else {
-    	uint8_t dat[] = {2,
+    } else {*/
+    	uint8_t dat[] = {PAGE_PROG,
     			(uint8_t)((WriteAddr_inBytes & 0xFF0000) >> 16),
 				(uint8_t)((WriteAddr_inBytes & 0xFF00) >> 8),
 				(uint8_t)(WriteAddr_inBytes & 0xFF),
 				pBuffer};
     	uk = &dat[0];
         len--;
-    }
+    /*}*/
     W25_SELECT();
-    //W25qxx_Spi(0x02);
+    //W25qxx_Spi(PAGE_PROG);
     ////if (w25qxx.ID >= W25Q256) W25qxx_Spi((WriteAddr_inBytes & 0xFF000000) >> 24);
     //W25qxx_Spi((WriteAddr_inBytes & 0xFF0000) >> 16);
     //W25qxx_Spi((WriteAddr_inBytes & 0xFF00) >> 8);
@@ -676,31 +692,36 @@ void W25qxx_WritePage(uint8_t *pBuffer, uint32_t Page_Address, uint32_t OffsetIn
     W25qxx_WaitForWriteEnd();
     W25qxx_WriteEnable();
 
-
-    //W25_SELECT();
-    //W25qxx_Spi(0x02);
     Page_Address = (Page_Address * w25qxx.PageSize) + OffsetInByte;
-    //if (w25qxx.ID >= W25Q256) W25qxx_Spi((Page_Address & 0xFF000000) >> 24);
-    //W25qxx_Spi((Page_Address & 0xFF0000) >> 16);
-    //W25qxx_Spi((Page_Address & 0xFF00) >> 8);
-    //W25qxx_Spi(Page_Address&0xFF);
-    //HAL_SPI_Transmit(portFLASH, pBuffer, NumByteToWrite_up_to_PageSize, 150);
-    //W25_UNSELECT();
 
-    pageTmp[0] = 2;
-    pageTmp[1] = (Page_Address & 0xFF0000) >> 16;
-    pageTmp[2] = (Page_Address& 0xFF00) >> 8;
-    pageTmp[3] = Page_Address & 0xFF;
-    //pageTmp[4] = 0;
-    memcpy(&pageTmp[PAGE_HDR_BYTES], pBuffer, w25qxx.PageSize);
+    /*W25_SELECT();
+    W25qxx_Spi(PAGE_PROG);
+    //if (w25qxx.ID >= W25Q256) W25qxx_Spi((Page_Address & 0xFF000000) >> 24);
+    W25qxx_Spi((Page_Address & 0xFF0000) >> 16);
+    W25qxx_Spi((Page_Address & 0xFF00) >> 8);
+    W25qxx_Spi(Page_Address&0xFF);
+    HAL_SPI_Transmit(portFLASH, pBuffer, NumByteToWrite_up_to_PageSize, min_wait_ms);
+    W25_UNSELECT();*/
+
+    uint16_t lens = NumByteToWrite_up_to_PageSize + PAGE_HDR_BYTES;
+    int idx = 0;
+    pageTmp[idx++] = PAGE_PROG;
+    //if (w25qxx.ID >= W25Q256) pageTmp[idx++] = (Page_Address & 0xFF000000) >> 24;
+    pageTmp[idx++] = (Page_Address & 0xFF0000) >> 16;
+    pageTmp[idx++] = (Page_Address& 0xFF00) >> 8;
+    pageTmp[idx++] = Page_Address & 0xFF;
+    memcpy(&pageTmp[PAGE_HDR_BYTES], pBuffer, NumByteToWrite_up_to_PageSize);//w25qxx.PageSize);
+
     W25_SELECT();
     if (w25_withDMA) {
-    	HAL_SPI_Transmit_DMA(portFLASH, pageTmp, sizeof(pageTmp));
+    	HAL_SPI_Transmit_DMA(portFLASH, pageTmp, lens);
     } else {
-    	HAL_SPI_TransmitReceive(portFLASH, pageTmp, pageTmp, sizeof(pageTmp), min_wait_ms);//250);
+    	HAL_SPI_Transmit(portFLASH, pageTmp, lens, min_wait_ms);
+
     	W25_UNSELECT();
 
     	W25qxx_WaitForWriteEnd();
+
 #ifdef W25QXX_DEBUG
     	StartTime = HAL_GetTick() - StartTime;
     	for (uint32_t i = 0; i < NumByteToWrite_up_to_PageSize ; i++) {
@@ -814,12 +835,12 @@ void W25qxx_ReadByte(uint8_t *pBuffer, uint32_t Bytes_Address)
 #endif
 
     W25_SELECT();
-    W25qxx_Spi(0x0B);
-    if (w25qxx.ID >= W25Q256) W25qxx_Spi((Bytes_Address & 0xFF000000) >> 24);
+    W25qxx_Spi(DATA_READ);//FAST_READ);
+    //if (w25qxx.ID >= W25Q256) W25qxx_Spi((Bytes_Address & 0xFF000000) >> 24);
     W25qxx_Spi((Bytes_Address & 0xFF0000) >> 16);
     W25qxx_Spi((Bytes_Address& 0xFF00) >> 8);
     W25qxx_Spi(Bytes_Address & 0xFF);
-    W25qxx_Spi(0);
+    //W25qxx_Spi(0);
     *pBuffer = W25qxx_Spi(W25QXX_DUMMY_BYTE);
     W25_UNSELECT();
 
@@ -843,13 +864,13 @@ void W25qxx_ReadBytes(uint8_t *pBuffer, uint32_t ReadAddr, uint32_t NumByteToRea
 #endif
 
     W25_SELECT();
-    W25qxx_Spi(0x0B);
-    if (w25qxx.ID >= W25Q256) W25qxx_Spi((ReadAddr & 0xFF000000) >> 24);
+    W25qxx_Spi(DATA_READ);//FAST_READ);
+    //if (w25qxx.ID >= W25Q256) W25qxx_Spi((ReadAddr & 0xFF000000) >> 24);
     W25qxx_Spi((ReadAddr & 0xFF0000) >> 16);
     W25qxx_Spi((ReadAddr& 0xFF00) >> 8);
     W25qxx_Spi(ReadAddr & 0xFF);
-    W25qxx_Spi(0);
-    HAL_SPI_Receive(portFLASH, pBuffer, NumByteToRead, 2000);
+    //W25qxx_Spi(0);
+    HAL_SPI_Receive(portFLASH, pBuffer, NumByteToRead, max_wait_ms);
     W25_UNSELECT();
 
 #ifdef W25QXX_DEBUG
@@ -890,30 +911,36 @@ void W25qxx_ReadPage(uint8_t *pBuffer, uint32_t Page_Address, uint32_t OffsetInB
 #endif
 
     Page_Address = Page_Address * w25qxx.PageSize + OffsetInByte;
-
-    //W25_SELECT();
-    //W25qxx_Spi(0x0B);
+    /*
+    W25_SELECT();
+    W25qxx_Spi(DATA_READ);//FAST_READ);
     //if (w25qxx.ID >= W25Q256) W25qxx_Spi((Page_Address & 0xFF000000) >> 24);
-    //W25qxx_Spi((Page_Address & 0xFF0000) >> 16);
-    //W25qxx_Spi((Page_Address& 0xFF00) >> 8);
-    //W25qxx_Spi(Page_Address & 0xFF);
+    W25qxx_Spi((Page_Address & 0xFF0000) >> 16);
+    W25qxx_Spi((Page_Address& 0xFF00) >> 8);
+    W25qxx_Spi(Page_Address & 0xFF);
     //W25qxx_Spi(0);
-    //HAL_SPI_Receive(portFLASH, pBuffer, NumByteToRead_up_to_PageSize, 200);
-    //W25_UNSELECT();
-    //
-    pageTmp[0] = 0x0b;
-    pageTmp[1] = (Page_Address & 0xFF0000) >> 16;
-    pageTmp[2] = (Page_Address& 0xFF00) >> 8;
-    pageTmp[3] = Page_Address & 0xFF;
-    //pageTmp[4] = 0;
+    HAL_SPI_Receive(portFLASH, pBuffer, NumByteToRead_up_to_PageSize, min_wait_ms);
+    W25_UNSELECT();
+    */
+    memset(pageTmp, 0, sizeof(pageTmp));
+    uint16_t lens = NumByteToRead_up_to_PageSize + PAGE_HDR_BYTES;// + 1;
+    int idx = 0;
+    pageTmp[idx++] = DATA_READ;//FAST_READ;
+    //if (w25qxx.ID >= W25Q256) pageTmp[idx++] = (Page_Address & 0xFF000000) >> 24;
+    pageTmp[idx++] = (Page_Address & 0xFF0000) >> 16;
+    pageTmp[idx++] = (Page_Address& 0xFF00) >> 8;
+    pageTmp[idx++] = Page_Address & 0xFF;
+    //pageTmp[idx++] = 0;
     W25_SELECT();
     if (w25_withDMA) {
-    	HAL_SPI_Receive_DMA(portFLASH, pageTmp, sizeof(pageTmp));
+    	HAL_SPI_Receive_DMA(portFLASH, pageTmp, lens);//sizeof(pageTmp));
     } else {
-    	HAL_SPI_TransmitReceive(portFLASH, pageTmp, pageTmp, sizeof(pageTmp), min_wait_ms);//200);
-    	memcpy(pBuffer, &pageTmp[PAGE_HDR_BYTES + 1], w25qxx.PageSize);
-
+    	if (HAL_SPI_TransmitReceive(portFLASH, pageTmp, pageTmp, lens, min_wait_ms) != HAL_OK) devError |= devSPI;
+    	//HAL_SPI_Transmit(portFLASH, pageTmp, PAGE_HDR_BYTES + 1, min_wait_ms);
+    	//HAL_SPI_Receive(portFLASH, pBuffer, NumByteToRead_up_to_PageSize, min_wait_ms);
     	W25_UNSELECT();
+    	memcpy(pBuffer, &pageTmp[PAGE_HDR_BYTES], NumByteToRead_up_to_PageSize);//w25qxx.PageSize);
+
     	//
 #ifdef W25QXX_DEBUG
     	StartTime = HAL_GetTick() - StartTime;

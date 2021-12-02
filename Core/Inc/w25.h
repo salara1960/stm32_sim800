@@ -16,6 +16,30 @@
 #define PAGE_BUF_SIZE 256
 #define PAGE_HDR_BYTES 4
 
+
+#define EN_RESET        0x66
+#define CHIP_RESET      0x99
+
+#define JEDEC_ID        0x9F
+#define READ_UID        0x4B
+
+#define WRITE_ENABLE       6
+#define WRITE_DISABLE      4
+#define READ_STAT_REG1     5
+#define READ_STAT_REG2  0x35
+#define READ_STAT_REG3  0x15
+#define WRITE_STAT_REG1    1
+#define WRITE_STAT_REG2 0x31
+#define WRITE_STAT_REG3 0x11
+#define CHIP_ERASE      0xC7
+#define SECTOR_ERASE    0x20
+#define BLOCK32_ERASE   0x52
+#define BLOCK64_ERASE   0xD8
+#define FAST_READ       0x0B
+#define DATA_READ          3
+#define PAGE_PROG          2
+
+
 typedef enum {
     W25Q10 = 1,
     W25Q20,
@@ -58,7 +82,7 @@ w25qxx_t w25qxx;
 //const char *all_chipID[];
 //const uint32_t all_chipBLK[];
 uint8_t w25_withDMA;
-uint8_t pageTmp[PAGE_BUF_SIZE + PAGE_HDR_BYTES];
+uint8_t pageTmp[PAGE_BUF_SIZE + PAGE_HDR_BYTES + 1];
 
 //------------------------------------------------------------------------------------------
 

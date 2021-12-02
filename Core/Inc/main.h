@@ -87,6 +87,10 @@ enum {
 #ifdef SET_GPS
 	,devCRC = 0x80
 #endif
+#ifdef SET_W25FLASH
+	,devFS = 0x100
+#endif
+
 };
 enum {//INIT COMMANDS NUMBERS
 	iAT = 0,
@@ -188,6 +192,14 @@ enum {
 	seqAny
 };
 
+enum {
+	sNone = -1,
+	sRead,
+	sWrite,
+	sErase,
+	sNext
+};
+
 #define _10ms 1
 #define _20ms (_10ms * 2)
 #define _30ms (_10ms * 3)
@@ -239,7 +251,7 @@ enum {
 #define BACK_SPACE 8
 
 #define min_wait_ms 350
-#define max_wait_ms 750
+#define max_wait_ms 1000
 
 #define MAX_CMD_BUF  160
 
@@ -254,13 +266,17 @@ enum {
 
 #define MAX_FREQ_LIST 8
 
+#define LOOP_FOREVER() while(1) { HAL_Delay(1); }
+
 #ifdef SET_OLED_I2C
 	I2C_HandleTypeDef *portOLED;
 	uint8_t i2cRdy;
 #endif
 #ifdef SET_W25FLASH
+	//
 	SPI_HandleTypeDef *portFLASH;
 	uint8_t spiRdy;
+	//
 #endif
 
 

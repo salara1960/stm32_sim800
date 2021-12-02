@@ -23,6 +23,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+#include "fatfs.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -67,14 +68,14 @@ DMA_HandleTypeDef hdma_usart2_tx;
 osThreadId_t mainTaskHandle;
 const osThreadAttr_t mainTask_attributes = {
   .name = "mainTask",
-  .priority = (osPriority_t) osPriorityNormal2,
-  .stack_size = 1024 * 4
+  .priority = (osPriority_t) osPriorityNormal1,
+  .stack_size = 1024 * 4//2048 * 4
 };
 /* Definitions for tempTask */
 osThreadId_t tempTaskHandle;
 const osThreadAttr_t tempTask_attributes = {
   .name = "tempTask",
-  .priority = (osPriority_t) osPriorityNormal1,
+  .priority = (osPriority_t) osPriorityNormal,
   .stack_size = 256 * 4
 };
 /* Definitions for rtcMutex */
@@ -82,7 +83,7 @@ osMutexId_t rtcMutexHandle;
 const osMutexAttr_t rtcMutex_attributes = {
   .name = "rtcMutex"
 };
-// Definitions for sem
+/* Definitions for sem */
 osSemaphoreId_t semHandle;
 const osSemaphoreAttr_t sem_attributes = {
   .name = "sem"
@@ -134,16 +135,22 @@ const osSemaphoreAttr_t sem_attributes = {
 //const char *version = "1.9.4 (24.11.2021)"; //minor changes in +cusd parser and add local commands (via uart)
 //const char *version = "1.9.5 (25.11.2021)";
 //const char *version = "1.9.6 (26.11.2021)";
-const char *version = "1.9.7 (27.11.2021)";// Use parser answer from GSM module for enter AT commands via local channel (uart)
+//const char *version = "1.9.7 (27.11.2021)";// Use parser answer from GSM module for enter AT commands via local channel (uart)
+//const char *version = "2.0.1 (27.11.2021)";// add flash memory (w25q64)
+//const char *version = "2.0.2 (30.11.2021)";//add reset flash_memory_chip (w25q64)
+//const char *version = "2.0.3 (01.12.2021)";//add read 4 page from sector flash memory (w25q64)
+const char *version = "2.0.4 (02.12.2021)";//support local commands: read/write/erase sector from flash memory (w25q64)
 
 
-volatile time_t epoch = 1638033160;//1637954401;//1637916982;//1637870245;//1637768795;//1637673169;
+
+volatile time_t epoch = 1638432926;
+						//1638385311;//1638298187;//1638033160;//1637954401;//1637916982;//1637870245;//1637768795;//1637673169;
 						//1637608799;//1637500605;//1637421807;//1637342030;//1637171390;//1637156150;//1637080774;//1637006802;
 						//1636985372;//1636907840;//1636714630;//1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
 						//1636208753;//1636148268;//1636114042;//1636106564;//1636045527;//1636022804;//1635975820;//1635956750;
 						//1635854199;//1635762840;//1635701599;//1635681180;//1635627245;//1635505880;//1635001599;//1634820289;
 
-int tZone = TZONE;	// time zone when set date/time
+int tZone = TZONE;	// часовой пояс для установки даты и времени
 volatile uint32_t cnt_err = 0;
 //     Флаги событий
 volatile uint8_t restart_flag = 0;
@@ -174,6 +181,7 @@ volatile bool prn_flags = false;
 volatile bool prn_freemem = false;
 volatile bool net_flag = false;
 volatile bool prn_cmd = true;
+volatile bool clr_flag = false;
 //     Служебные переменные для для локального канала управления (uart)
 static char RxBuf[MAX_UART_BUF] = {0};// Буфер для приёма данных из порта portLOG
 uint8_t rx_uk;
@@ -226,6 +234,29 @@ uint8_t i2cRdy = 1;
 uint8_t screenON = 0;
 uint32_t spi_cnt = 0;
 uint8_t spiRdy = 1;
+//
+#ifdef SET_W25FLASH
+	const char *_read  = "read";
+	const char *_write  = "write";
+	const char *_erase  = "erase";
+	const char *_next  = "next";
+	int adr_sector = 0, offset_sector = 0, list_sector = 0, len_write = 0;
+	int cmd_sector = sNone, last_cmd_sector = sNone;
+	uint8_t byte_write = 0xff;
+	bool flag_sector = false;
+	//
+	DIR dir;
+	FATFS FatFs;
+	FRESULT Fres;
+	unsigned char fs_work[_MAX_SS] = {0};
+	char strf[1024] = {0};
+	const char *cfg = "cfg.conf";
+	int fPresent = 0;
+	bool chipPresent = false;
+	bool dir_open = false;
+	bool mnt = false;
+	bool validChipID = false;
+#endif
 //      Служебные переменные для модулей GSM/GPRM, GPS/GLONASS
 s_recq_t gsmTo;
 bool gsmToFlag = false;
@@ -429,6 +460,10 @@ void StartTemp(void *argument);
 
 /* USER CODE BEGIN PFP */
 
+#ifdef SET_W25FLASH
+	static char *fsErrName(int fr);
+#endif
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -473,6 +508,7 @@ int main(void)
   MX_USART2_UART_Init();
   MX_USART6_UART_Init();
   MX_TIM10_Init();
+  MX_FATFS_Init();
   /* USER CODE BEGIN 2 */
 
   	  //   мигнем тремя светодиодами
@@ -512,6 +548,152 @@ int main(void)
       InitSMSList();// инициализация структуры для хранения частей смс
 #endif
 
+
+
+#ifdef SET_W25FLASH
+
+      /*
+      chipPresent = W25qxx_Init();
+      if (chipPresent) {
+    	  uint32_t cid = W25qxx_getChipID();
+    	  if ((cid >= W25Q10) && (cid <= W25Q128)) {
+    		  //Report(NULL, true, "Flash memory chip found. ChipID:0x%X\r\n", cid);
+    		  //W25qxx_EraseChip();
+    		  W25qxx_EraseSector(0);
+    		  //
+          	  Report(NULL, true, "Write page 0...\r\n");
+          	  char temp[128];
+          	  int step = 32;//56;
+          	  int i, j = -1, k = PAGE_BUF_SIZE / 32;//W25qxx_getSectorSize() / step;
+          	  for (i = 0; i < PAGE_BUF_SIZE; i++) fs_work[i] = i & 0xff;
+          	  //W25qxx_WriteSector(fs_work, 0, 0, W25qxx_getSectorSize());
+          	  W25qxx_WritePage(fs_work, 0, 0, PAGE_BUF_SIZE);
+          	  while (++j < k) {
+        	  	  temp[0] = '\0';
+        	  	  for (i = 0; i < step; i++) sprintf(temp+strlen(temp), "%02X ", fs_work[i + (j * step)]);
+        	  	  Report(NULL, false, "%s\r\n", temp);
+          	  }
+
+          	  Report(NULL, true, "Read page 0...\r\n");
+          	  //W25qxx_RdSec(fs_work, 0, 0, W25qxx_getSectorSize());
+          	  W25qxx_ReadPage(fs_work, 0, 0, PAGE_BUF_SIZE);
+
+          	  j = -1;
+          	  while (++j < k) {
+        	  	  temp[0] = '\0';
+        	  	  for (i = 0; i < step; i++) sprintf(temp+strlen(temp), "%02X ", fs_work[i + (j * step)]);
+        	  	  Report(NULL, false, "%s\r\n", temp);
+          	  }
+    		  //
+    	  }
+      }
+      */
+      //------------------   FatFs   --------------------
+      chipPresent = W25qxx_Init();
+      uint32_t cid = W25qxx_getChipID();
+      if ( chipPresent && ((cid >= W25Q10) && (cid <= W25Q128)) ) validChipID = true;
+      list_sector = W25qxx_getPageSize() << 2;
+      //char ps[16] = {0};
+      /*
+      if ( chipPresent && ((cid >= W25Q10) && (cid <= W25Q128)) ) {
+    	  //W25qxx_EraseChip();
+    	  strcpy(USERPath, "9:");
+    	  strcpy(ps, "/");
+    	  //Report(NULL, true, "Begin mount drive \"%.*s\"", sizeof(USERPath), USERPath);
+    	  Fres = f_mount(&FatFs, USERPath, 1);
+    	  switch (Fres) {
+    	  	  case FR_NO_FILESYSTEM:
+    	  		  Report(NULL, true, "Mount drive \"%.*s\" error #%u (%s)\r\n", sizeof(USERPath), USERPath, Fres, fsErrName(Fres));
+    	  		  //W25qxx_EraseChip();
+    	  		  Fres = f_mkfs(USERPath, FM_FAT, 0, fs_work, sizeof(fs_work));
+    	  		  if (!Fres) {
+    	  			  Report(NULL, true, "Make FAT fs OK\r\nBegin mount drive \"%.*s\"", sizeof(USERPath), USERPath);
+    	  			  Fres = f_mount(&FatFs, USERPath, 1);
+    	  			  Report(NULL, true, "Mount FAT fs return #%u (%s)\r\n", Fres, fsErrName(Fres));
+    	  		  } else {
+    	  			  Report(NULL, true, "Make FAT fs error #%u (%s)\r\n", Fres, fsErrName(Fres));
+    	  		  }
+    		  break;
+    	  	  case FR_OK:
+    	  		  mnt = true;
+    	  		  Report(NULL, true, "Mount drive \"%.*s\" OK\r\n", sizeof(USERPath), USERPath);
+    		  break;
+    	  	  default: Report(NULL, true, "Mount drive \"%.*s\" error #%u (%s)\r\n", sizeof(USERPath), USERPath, Fres, fsErrName(Fres));
+    	  }
+    	  //
+    	  if (!Fres) {
+    		  Fres = f_opendir(&dir, ps);                       // Open the directory
+    		  if (!Fres) {
+    			  dir_open = true;
+    			  FILINFO fno;
+    			  for (;;) {
+    				  Fres = f_readdir(&dir, &fno);                   // Read a directory item
+    				  if (Fres || fno.fname[0] == 0) {
+    					  if (Fres)
+    						  Report(NULL, true, "Error f_readdir() #%u (%s)\r\n", Fres, fsErrName(Fres));
+    					  else
+    						  Report(NULL, true, "Folder '%s' is empty\r\n", ps);
+    					  break;  // Break on error or end of dir
+    				  } else if (fno.fattrib & AM_DIR) {             // It is a directory
+    		        	  Report(NULL, true, "It is folder -> '%s'\r\n", fno.fname);
+    		          } else {                                       // It is a file.
+    		        	  Report(NULL, true, "%s/%s %u %u\r\n", ps, fno.fname, fno.fsize, fno.fattrib);
+    		          }
+    		      }
+    			  //if (f_closedir(&dir) == FR_OK) dir_open = false;
+    		  }
+    	  }
+    	  //
+    	  FIL fp;
+    	  if (!Fres && dir_open) {
+    		  sprintf(strf, "%s%s", ps, cfg);
+    		  Fres = f_open(&fp, strf, FA_CREATE_NEW | FA_WRITE);
+    		  if (!Fres) {
+    			  Report(NULL, true, "Create new file '%s' OK\r\n", strf);
+    			  int wrt = 0, dl = sprintf(strf, "#Configuration file:\r\n");
+    			  wrt = f_puts(strf, &fp);
+    			  if (wrt != dl) {
+    				  devError |= devFS;
+    				  Report(NULL, true, "Error while write file '%s'\r\n", strf);
+    			  } else Report(NULL, true, "File file '%s' write OK\r\n", strf);
+    			  Fres = f_close(&fp);
+    		  } else Report(NULL, true, "Create new file '%s' error #%u (%s)\r\n", strf, Fres, fsErrName(Fres));
+    	  }
+      	  //
+      	  if (!Fres && dir_open) {
+      		  if (!f_open(&fp, cfg, FA_READ)) {
+      			  Report(NULL, false, "File '%s' open OK", cfg);
+      			  while (f_gets(strf, sizeof(strf) - 1, &fp) != NULL) {
+      				  Report(NULL, false, "%s", strf);
+      				  fPresent++;
+      			  }
+      			  f_close(&fp);
+      			  if (!fPresent) devError |= devFS;
+      		  } else Report(NULL, true, "Error while open for reading file '%s'\r\n", cfg);
+      	  }
+      	  //
+
+      } else Report(NULL, true, "Flash memory chip Not Present\r\n");
+      //
+
+      if (dir_open) {
+    	  f_closedir(&dir);
+    	  dir_open = false;
+    	  Report(NULL, true, "Close dir '%s'\r\n", ps);
+      }
+      if (mnt) {
+    	  f_mount(NULL, USERPath, 1);
+    	  mnt = false;
+    	  Report(NULL, true, "Umount drive '%.*s'\r\n", sizeof(USERPath), USERPath);
+      }
+      */
+
+	  if (devError) errLedOn(NULL);
+
+
+      //---------------------------------------------------
+#endif
+
       //-------------------------------------------------
       //     Инициализация OLED дисплея
       oled_withDMA = 1;
@@ -523,6 +705,12 @@ int main(void)
       i2c_ssd1306_clear();//clear screen
 
       //---------------------------------------------------
+
+
+//LOOP_FOREVER();
+
+
+      //coreStatus = osKernelInitialize();
 
   /* USER CODE END 2 */
 
@@ -781,7 +969,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;//2;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -1028,7 +1216,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pin = SPI1_NSS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   HAL_GPIO_Init(SPI1_NSS_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LED_ERROR_Pin LED_Pin CON_LED_Pin */
@@ -1048,7 +1236,54 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+#ifdef SET_W25FLASH
+//------------------------------------------------------------------------------------
+static char *fsErrName(int fr)
+{
+	switch (fr) {
+		case FR_OK:				// (0) Succeeded
+			return "Succeeded";
+		case FR_DISK_ERR://			(1) A hard error occurred in the low level disk I/O layer
+			return "Error disk I/O";
+		case FR_INT_ERR://			(2) Assertion failed
+			return "Assertion failed";
+		case FR_NOT_READY://		(3) The physical drive cannot work
+			return "Drive not ready";
+		case FR_NO_FILE://			(4) Could not find the file
+			return "No file";
+		case FR_NO_PATH://			(5) Could not find the path
+			return "No path";
+		case FR_INVALID_NAME://		(6) The path name format is invalid
+			return "Path error";
+		case FR_DENIED://			(7) Access denied due to prohibited access or directory full
+		case FR_EXIST://			(8) Access denied due to prohibited access
+			return "Access denied";
+		case FR_INVALID_OBJECT://	(9) The file/directory object is invalid
+			return "Invalid file/dir";
+		case FR_WRITE_PROTECTED://	(10) The physical drive is write protected
+			return "Write protected";
+		case FR_INVALID_DRIVE://	(11) The logical drive number is invalid
+			return "Invalid drive number";
+		case FR_NOT_ENABLED://		(12) The volume has no work area
+			return "Volume no area";
+		case FR_NO_FILESYSTEM://	(13) There is no valid FAT volume
+			return "Volume has't filesystem";
+		case FR_MKFS_ABORTED://		(14) The f_mkfs() aborted due to any problem
+			return "f_mkfs() aborted";
+		case FR_TIMEOUT://			(15) Could not get a grant to access the volume within defined period
+			return "Timeout access";
+		case FR_LOCKED://			(16) The operation is rejected according to the file sharing policy
+			return "File locked";
+		case FR_NOT_ENOUGH_CORE://	(17) LFN working buffer could not be allocated
+			return "Allocated buf error";
+		case FR_TOO_MANY_OPEN_FILES://	(18) Number of open files > _FS_LOCK
+			return "Open file limit";
+		case FR_INVALID_PARAMETER://	(19) Given parameter is invalid
+			return "Invalid parameter";
+	}
+	return "Unknown error";
+}
+#endif
 //------------------------------------------------------------------------------------
 //             Функция выделяет из "кучи" блок памяти
 //
@@ -1099,6 +1334,7 @@ void errNameStr(uint8_t er, char *st)
 //
 void serialLOG()
 {
+	char *uki = NULL;
 
 	if (uRxByte != BACK_SPACE)
 		RxBuf[rx_uk & 0xff] = (char)uRxByte;
@@ -1163,8 +1399,69 @@ void serialLOG()
 				mk_at = true;
 			}
 		} else if (strstr(RxBuf, _clr)) {
-			devError = 0;
+			clr_flag = true;
 		}
+#ifdef SET_W25FLASH
+		else if (strstr(RxBuf, _read)) {
+			cmd_sector = sRead;
+			uki = RxBuf + strlen(_read);
+		} else if (strstr(RxBuf, _write)) {
+			cmd_sector = sWrite;
+			uki = RxBuf + strlen(_write);
+		} else if (strstr(RxBuf, _erase)) {
+			cmd_sector = sErase;
+			uki = RxBuf + strlen(_erase);
+		} else if (strstr(RxBuf, _next)) {
+			cmd_sector = sNext;
+		}
+		if ((cmd_sector != sNone) && validChipID) {
+			uk = strchr(RxBuf, '\n');
+			if (uk) *(uk) = '\0';
+			switch (cmd_sector) {
+				case sRead:// read 0
+				case sErase:// erase 0
+					if (*uki == ' ') {
+						int sek = atoi(++uki);
+						if ((sek >= 0) && (sek < W25qxx_getSectorCount())) {
+							adr_sector = sek;
+							offset_sector = 0;
+							flag_sector = true;
+						}
+					}
+				break;
+				case sWrite:// write 0 a5 | write 0 a5 256
+					if (*uki == ' ') {
+						uki++;
+						int sek = atoi(uki);
+						if ((sek >= 0) && (sek < W25qxx_getSectorCount())) {
+							char *ukn = strchr(uki, ' ');
+							if (ukn) {
+								len_write = -1;
+								ukn++;
+								byte_write = hexToBin(ukn);
+								uki = strchr(ukn, ' ');
+								if (uki) {
+									int l = atoi(++uki);
+									if ((l > 0) && (l < W25qxx_getSectorSize())) len_write = l;
+								}
+								adr_sector = sek;
+								offset_sector = 0;
+								flag_sector = true;
+							}
+						}
+					}
+				break;
+				case sNext:// next
+					if ((last_cmd_sector == sRead) || (last_cmd_sector == sNext)) {
+						if ((offset_sector + list_sector) < W25qxx_getSectorSize()) {
+							offset_sector += list_sector;
+							flag_sector = true;
+						}
+					}
+				break;
+			}
+		}
+#endif
 #ifdef SET_GPS
 		else if (strstr(RxBuf, _ongps)) {
 			if (!prnGpsFlag) prnGpsFlag = true;
@@ -1845,7 +2142,7 @@ void StartDefaultTask(void *argument)
 		}
 		//--------------------------------------------------------------------------------
 #endif
-
+		//
 		//
 		//
 		if (prn_flags) {// Событие - установлен флаг печати структуры состояния (все рабочие флаги)
@@ -1857,9 +2154,14 @@ void StartDefaultTask(void *argument)
 		} else if (prn_freemem) {// Событие - печатать количество сободной динамической памяти из 'кучи'
 			prn_freemem = false;
 			Report(__func__, true, "Free heap memory size %lu\r\n", xPortGetFreeHeapSize());
+		} else if (clr_flag) {
+			clr_flag = false;
+			devError = 0;
+			HAL_GPIO_WritePin(LED_ERROR_GPIO_Port, LED_ERROR_Pin, GPIO_PIN_SET);//LED OFF
+			i2c_ssd1306_clear_line(err_line);
+			Report(__func__, true, "Clear all errors (devError)%s", eol);
 		}
-		//
-		//
+
 		if (devError) {//  Блок выдачи на дисплей ошибок на устройстве, если таковые есть
 #ifdef SET_OLED_I2C
 			errNameStr(devError, scr);
@@ -1884,22 +2186,66 @@ void StartDefaultTask(void *argument)
 						sch++;
 						if (sch == MAX_NMEA_MSG) {
 							sch = 0;
-							if (prnGpsFlag) {
-								//prnGpsFlag = false;
-								Report(NULL, true, "%s%s", gpsPrint(buf), eol);
-							}
+							if (prnGpsFlag) Report(NULL, true, "%s%s", gpsPrint(buf), eol);
 							// Вывод данных на OLED дисплей
 							s_float_t flo = {0,0};
 							floatPart(GPS.dec_latitude, &flo);  sprintf(scr,            "%02lu.%04lu ",  flo.cel, flo.dro / 100);
 							floatPart(GPS.dec_longitude,&flo);  sprintf(scr+strlen(scr),"%02lu.%04lu", flo.cel, flo.dro / 100);
 							floatPart(GPS.msl_altitude,  &flo); sprintf(scr+strlen(scr),"\n sat:%d alt:%lu",GPS.satelites, flo.cel);
 							i2c_ssd1306_text_xy(scr, 1, cor_line, false);
-							gps_tmr = get_tmr10(_700ms);//_950ms);
-							//
+							gps_tmr = get_tmr10(_700ms);
 						}
 					}//-----------------------------------------------------------------------------------------------------
 				}
 			}
+		}
+#endif
+		//
+#ifdef SET_W25FLASH
+		//   Блок работы с внешней flash памятью. Доступные функции : чтение, запись и стирание
+		if (flag_sector) {
+			flag_sector = false;
+			switch (cmd_sector) {
+				case sRead:
+				case sNext:
+				{
+					uint32_t w25_adr = (adr_sector * W25qxx_getSectorSize()) + offset_sector;
+					uint32_t dlin = list_sector;
+					int step = 32;
+					uint32_t ind = 0;
+					W25qxx_ReadSector(fs_work, adr_sector, offset_sector, dlin);
+					Report(NULL, false, "Read sector:%d offset:%d len:%u%s", adr_sector, offset_sector, dlin, eol);
+					while (ind < dlin) {
+						strf[0] = '\0';
+						while (1) {
+							sprintf(strf+strlen(strf), "%06X ", (unsigned int)w25_adr);
+							for (int i = 0; i < step; i++) sprintf(strf+strlen(strf), " %02X", fs_work[i + ind]);
+							strcat(strf, eol);
+							w25_adr += step;
+							ind += step;
+							if (!(ind % W25qxx_getPageSize())) break;
+						}
+						Report(NULL, false, "%s", strf);
+					}
+				}
+				break;
+				case sWrite:
+				{
+					uint32_t ss = W25qxx_getSectorSize();
+					if (!W25qxx_IsEmptySector(adr_sector, 0, ss)) W25qxx_EraseSector(adr_sector);
+					memset(fs_work, byte_write, ss);
+					if (len_write != -1) ss = len_write;
+					W25qxx_WriteSector(fs_work, adr_sector, offset_sector, ss);
+					Report(NULL, false, "Fill sector:%d byte:%02X len:%d done%s", adr_sector, byte_write, ss, eol);
+				}
+				break;
+				case sErase:
+					W25qxx_EraseSector(adr_sector);
+					Report(NULL, false, "Erase sector:%d done%s", adr_sector, eol);
+				break;
+			}
+			last_cmd_sector =  cmd_sector;
+			cmd_sector = sNone;
 		}
 #endif
 		//

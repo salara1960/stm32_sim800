@@ -12,7 +12,7 @@
 
 #define SET_OLED_I2C
 
-//#define SET_W25FLASH
+#define SET_W25FLASH
 
 #ifdef SET_W25FLASH
 	//#define W25QXX_DEBUG

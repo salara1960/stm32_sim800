@@ -932,11 +932,9 @@ const char *findCmd(char *buf, int8_t *grp, int8_t *cur)
 {
 int8_t i, k;
 const char *adr = NULL;
-char *uk = NULL;
 
-	if ((uk = strstr(buf, eol)) != NULL) *uk = '\0';
-
-	int len = strlen(buf);
+	char *uk = strstr(buf, eol);
+	int len = uk ? uk - buf : strlen(buf);
 
 	for (k = 0; k < MAX_CMD_INFO; k++) {
 		adr = cmd_info[k].cmd;

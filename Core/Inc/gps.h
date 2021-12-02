@@ -60,6 +60,7 @@ int gpsValidate(char *str);
 float gpsToDec(float deg, char nsew);
 bool gpsParse(char *str);
 char *gpsPrint(char *str);
+uint8_t hexToBin(char *sc);
 
 #endif
 
