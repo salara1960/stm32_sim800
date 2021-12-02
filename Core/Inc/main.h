@@ -250,8 +250,8 @@ enum {
 #define CTRL_Z 0x1a
 #define BACK_SPACE 8
 
-#define min_wait_ms 350
-#define max_wait_ms 1000
+#define min_wait_ms 500
+#define max_wait_ms 2000
 
 #define MAX_CMD_BUF  160
 

@@ -139,11 +139,12 @@ const osSemaphoreAttr_t sem_attributes = {
 //const char *version = "2.0.1 (27.11.2021)";// add flash memory (w25q64)
 //const char *version = "2.0.2 (30.11.2021)";//add reset flash_memory_chip (w25q64)
 //const char *version = "2.0.3 (01.12.2021)";//add read 4 page from sector flash memory (w25q64)
-const char *version = "2.0.4 (02.12.2021)";//support local commands: read/write/erase sector from flash memory (w25q64)
+//const char *version = "2.0.4 (02.12.2021)";//support local commands: read/write/erase sector from flash memory (w25q64)
+const char *version = "2.0.5 (02.12.2021)";//up speed for UART1 to 230400 and use read/write from/to flash (w25q64) via DMA
 
 
 
-volatile time_t epoch = 1638432926;
+volatile time_t epoch = 1638477416;//1638432926;
 						//1638385311;//1638298187;//1638033160;//1637954401;//1637916982;//1637870245;//1637768795;//1637673169;
 						//1637608799;//1637500605;//1637421807;//1637342030;//1637171390;//1637156150;//1637080774;//1637006802;
 						//1636985372;//1636907840;//1636714630;//1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
@@ -589,26 +590,28 @@ int main(void)
       }
       */
       //------------------   FatFs   --------------------
-      chipPresent = W25qxx_Init();
+      /*chipPresent = W25qxx_Init();
       uint32_t cid = W25qxx_getChipID();
       if ( chipPresent && ((cid >= W25Q10) && (cid <= W25Q128)) ) validChipID = true;
       list_sector = W25qxx_getPageSize() << 2;
-      //char ps[16] = {0};
-      /*
+//      char ps[16] = {0};
+      Fres = f_mount(&FatFs, "0:", 1);//USERPath, 1);
+      //
       if ( chipPresent && ((cid >= W25Q10) && (cid <= W25Q128)) ) {
     	  //W25qxx_EraseChip();
-    	  strcpy(USERPath, "9:");
+    	  //strcpy(USERPath, "9:");
     	  strcpy(ps, "/");
     	  //Report(NULL, true, "Begin mount drive \"%.*s\"", sizeof(USERPath), USERPath);
-    	  Fres = f_mount(&FatFs, USERPath, 1);
+    	  Fres = f_mount(&FatFs, "", 1);//USERPath, 1);
+    	  Fres = FR_NO_FILESYSTEM;
     	  switch (Fres) {
     	  	  case FR_NO_FILESYSTEM:
     	  		  Report(NULL, true, "Mount drive \"%.*s\" error #%u (%s)\r\n", sizeof(USERPath), USERPath, Fres, fsErrName(Fres));
     	  		  //W25qxx_EraseChip();
-    	  		  Fres = f_mkfs(USERPath, FM_FAT, 0, fs_work, sizeof(fs_work));
+    	  		  Fres = f_mkfs("", FM_FAT, 0, fs_work, sizeof(fs_work));
     	  		  if (!Fres) {
     	  			  Report(NULL, true, "Make FAT fs OK\r\nBegin mount drive \"%.*s\"", sizeof(USERPath), USERPath);
-    	  			  Fres = f_mount(&FatFs, USERPath, 1);
+    	  			  Fres = f_mount(&FatFs, "", 1);//USERPath, 1);
     	  			  Report(NULL, true, "Mount FAT fs return #%u (%s)\r\n", Fres, fsErrName(Fres));
     	  		  } else {
     	  			  Report(NULL, true, "Make FAT fs error #%u (%s)\r\n", Fres, fsErrName(Fres));
@@ -686,7 +689,7 @@ int main(void)
     	  mnt = false;
     	  Report(NULL, true, "Umount drive '%.*s'\r\n", sizeof(USERPath), USERPath);
       }
-      */
+	  */
 
 	  if (devError) errLedOn(NULL);
 
@@ -969,7 +972,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;//2;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -1076,7 +1079,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 115200;
+  huart1.Init.BaudRate = 230400;//115200;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
@@ -1631,6 +1634,47 @@ void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c)
 {
 }
 */
+//------------------------------------------------------------------------------------------
+//    Функция устанавливает в начальное состояние 'готов' служебные параметры порта SPI1:
+//
+void spiDone(SPI_HandleTypeDef *hspi)
+{
+	if (hspi->Instance == SPI1) {
+#ifdef SET_W25FLASH
+		W25_UNSELECT();
+		spiRdy = 1;
+#endif
+	}
+}
+//------------------------------------------------------------------------------------------
+//    CallBack функция, вызывается по завершении приема данных от порта SPI
+//
+void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi)
+{
+	spiDone(hspi);
+}
+//------------------------------------------------------------------------------------------
+//    CallBack функция, вызывается по завершении передачи данных в порт SPI
+//
+void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
+{
+	spiDone(hspi);
+}
+//------------------------------------------------------------------------------------------
+//    CallBack функция, вызывается по завершении приема/передачи данных порта SPI
+//
+void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi)
+{
+	spiDone(hspi);
+}
+//-------------------------------------------------------------------------------------------
+//    CallBack функция, вызывается при возникновении ошибки у модуля SPI
+//
+void HAL_SPI_ErrorCallback(SPI_HandleTypeDef *hspi)
+{
+	spiDone(hspi);
+	devError |= devSPI;
+}
 //-------------------------------------------------------------------------------------------
 
 /* USER CODE END 4 */
@@ -1655,6 +1699,22 @@ void StartDefaultTask(void *argument)
 	Report(__func__, true, "Start main thread...(%lu)\r\n", xPortGetFreeHeapSize());
 
     //---------------------------------------------------------------
+			//------------------   FatFs   --------------------
+	      	chipPresent = W25qxx_Init();
+	      	uint32_t cid = W25qxx_getChipID();
+	      	if ( chipPresent && ((cid >= W25Q10) && (cid <= W25Q128)) ) validChipID = true;
+	      	list_sector = W25qxx_getPageSize() << 2;
+	      	/*Fres = f_mount(&FatFs, USERPath, 1);//USERPath, 1);
+	      	Report(NULL, true, "Mount drive \"%s\" error #%u (%s)\r\n", USERPath, Fres, fsErrName(Fres));
+	      	if (Fres == FR_NO_FILESYSTEM) {
+	      		Fres = f_mkfs(USERPath, FM_FAT, 0, fs_work, sizeof(fs_work));//W25qxx_getSectorSize());
+	      		if (!Fres) {
+	      			Report(NULL, true, "Make FAT fs OK\r\nBegin mount drive \"%s\"", USERPath);
+	      		} else {
+	      			Report(NULL, true, "Make FAT fs error #%u (%s)\r\n", Fres, fsErrName(Fres));
+	      		}
+	      	}*/
+	//---------------------------------------------------------------
 
 	//   Описание и инициализация служебных переменных
 	char *uks = NULL;

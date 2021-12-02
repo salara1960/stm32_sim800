@@ -712,15 +712,24 @@ void W25qxx_WritePage(uint8_t *pBuffer, uint32_t Page_Address, uint32_t OffsetIn
     pageTmp[idx++] = Page_Address & 0xFF;
     memcpy(&pageTmp[PAGE_HDR_BYTES], pBuffer, NumByteToWrite_up_to_PageSize);//w25qxx.PageSize);
 
+    spiRdy = 0;
+
+w25_withDMA = 1;
     W25_SELECT();
     if (w25_withDMA) {
     	HAL_SPI_Transmit_DMA(portFLASH, pageTmp, lens);
+    	while (!spiRdy) {
+    		W25qxx_Delay(1);
+    	}
+w25_withDMA = 0;
     } else {
     	HAL_SPI_Transmit(portFLASH, pageTmp, lens, min_wait_ms);
 
     	W25_UNSELECT();
 
     	W25qxx_WaitForWriteEnd();
+
+    	spiRdy = 1;
 
 #ifdef W25QXX_DEBUG
     	StartTime = HAL_GetTick() - StartTime;
@@ -931,17 +940,23 @@ void W25qxx_ReadPage(uint8_t *pBuffer, uint32_t Page_Address, uint32_t OffsetInB
     pageTmp[idx++] = (Page_Address& 0xFF00) >> 8;
     pageTmp[idx++] = Page_Address & 0xFF;
     //pageTmp[idx++] = 0;
+    spiRdy = 0;
+
+w25_withDMA = 1;
     W25_SELECT();
     if (w25_withDMA) {
-    	HAL_SPI_Receive_DMA(portFLASH, pageTmp, lens);//sizeof(pageTmp));
+    	HAL_SPI_TransmitReceive_DMA(portFLASH, pageTmp, pageTmp, lens);
+    	while (!spiRdy) {
+    		W25qxx_Delay(1);
+    	}
+w25_withDMA = 0;
     } else {
     	if (HAL_SPI_TransmitReceive(portFLASH, pageTmp, pageTmp, lens, min_wait_ms) != HAL_OK) devError |= devSPI;
-    	//HAL_SPI_Transmit(portFLASH, pageTmp, PAGE_HDR_BYTES + 1, min_wait_ms);
-    	//HAL_SPI_Receive(portFLASH, pBuffer, NumByteToRead_up_to_PageSize, min_wait_ms);
     	W25_UNSELECT();
-    	memcpy(pBuffer, &pageTmp[PAGE_HDR_BYTES], NumByteToRead_up_to_PageSize);//w25qxx.PageSize);
 
-    	//
+    	spiRdy = 1;
+    }
+	memcpy(pBuffer, &pageTmp[PAGE_HDR_BYTES], NumByteToRead_up_to_PageSize);//w25qxx.PageSize);
 #ifdef W25QXX_DEBUG
     	StartTime = HAL_GetTick() - StartTime;
     	for (uint32_t i = 0; i < NumByteToRead_up_to_PageSize ; i++) {
@@ -951,8 +966,7 @@ void W25qxx_ReadPage(uint8_t *pBuffer, uint32_t Page_Address, uint32_t OffsetInB
     	Report(NULL, false, "\r\n");
     	Report(NULL, true, "%s done after %u ms\r\n", __func__, StartTime);
 #endif
-    	//
-    }
+
 
     w25qxx.Lock = 0;
 }

@@ -99,7 +99,7 @@ DSTATUS USER_initialize (
     	}*/
     //
 
-    Report(__func__, true, "Dev:%u status:0x%X\r\n", pdrv, Stat);
+//    Report(__func__, true, "Dev:%u status:0x%X\r\n", pdrv, Stat);
 
     return Stat;
   /* USER CODE END INIT */
@@ -122,7 +122,7 @@ DSTATUS USER_status (
     Stat &= ~STA_NOINIT;
     //
 
-    Report(__func__, true, "Dev:%u stat:0x%X\r\n", pdrv, Stat);
+//    Report(__func__, true, "Dev:%u stat:0x%X\r\n", pdrv, Stat);
 
     return Stat;
   /* USER CODE END STATUS */
@@ -148,7 +148,7 @@ DRESULT USER_read (
 	uint32_t ss = W25qxx_getSectorSize();
 	int i = -1;
 	while (++i < count) {
-		Report(__func__, true, "Dev:%u sector:%u(%u) count:%u\r\n", pdrv, sector, ss, count);
+//		Report(__func__, true, "Dev:%u sector:%u(%u) count:%u\r\n", pdrv, sector, ss, count);
 		W25qxx_ReadSector((BYTE *)buff, sector++, 0, ss);
 	}
 	//
@@ -178,7 +178,7 @@ DRESULT USER_write (
 	uint32_t ss = W25qxx_getSectorSize();
 	int i = -1;
 	while (++i < count) {
-		Report(__func__, true, "Dev:%u sector:%u(%u) count:%u\r\n", pdrv, sector, ss, count);
+//		Report(__func__, true, "Dev:%u sector:%u(%u) count:%u\r\n", pdrv, sector, ss, count);
 		if (!W25qxx_IsEmptySector(sector, 0, ss)) W25qxx_EraseSector(sector);
 		W25qxx_WriteSector((BYTE *)buff, sector++, 0, ss);
 	}
@@ -226,7 +226,7 @@ DRESULT USER_ioctl (
     }
     //
 
-    Report(__func__, true, "Dev:%u cmd:%u buff:%u res:%d\r\n", pdrv, cmd, *(DWORD *)buff, res);
+//    Report(__func__, true, "Dev:%u cmd:%u buff:%u res:%d\r\n", pdrv, cmd, *(DWORD *)buff, res);
 
     return res;
   /* USER CODE END IOCTL */
