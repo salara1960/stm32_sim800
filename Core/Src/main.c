@@ -140,11 +140,12 @@ const osSemaphoreAttr_t sem_attributes = {
 //const char *version = "2.0.2 (30.11.2021)";//add reset flash_memory_chip (w25q64)
 //const char *version = "2.0.3 (01.12.2021)";//add read 4 page from sector flash memory (w25q64)
 //const char *version = "2.0.4 (02.12.2021)";//support local commands: read/write/erase sector from flash memory (w25q64)
-const char *version = "2.0.5 (02.12.2021)";//up speed for UART1 to 230400 and use read/write from/to flash (w25q64) via DMA
+//const char *version = "2.0.5 (02.12.2021)";//up speed for UART1 to 230400 and use read/write from/to flash (w25q64) via DMA
+const char *version = "2.1 (05.12.2021)";//project for STM32CubeIDE (first step for FatFs create/mount drive/open dir/mk-rd file)
 
 
 
-volatile time_t epoch = 1638477416;//1638432926;
+volatile time_t epoch = 1638733115;//1638477416;//1638432926;
 						//1638385311;//1638298187;//1638033160;//1637954401;//1637916982;//1637870245;//1637768795;//1637673169;
 						//1637608799;//1637500605;//1637421807;//1637342030;//1637171390;//1637156150;//1637080774;//1637006802;
 						//1636985372;//1636907840;//1636714630;//1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
@@ -246,16 +247,16 @@ uint8_t spiRdy = 1;
 	uint8_t byte_write = 0xff;
 	bool flag_sector = false;
 	//
-	DIR dir;
-	FATFS FatFs;
-	FRESULT Fres;
+	#ifdef SET_FAT_FS
+		FATFS FatFs;
+		const char *cfg = "cfg.conf";
+		bool mnt = false;
+		const char *dirName = "/";
+	#endif
+	//
 	unsigned char fs_work[_MAX_SS] = {0};
 	char strf[1024] = {0};
-	const char *cfg = "cfg.conf";
-	int fPresent = 0;
 	bool chipPresent = false;
-	bool dir_open = false;
-	bool mnt = false;
 	bool validChipID = false;
 #endif
 //      Служебные переменные для модулей GSM/GPRM, GPS/GLONASS
@@ -461,10 +462,6 @@ void StartTemp(void *argument);
 
 /* USER CODE BEGIN PFP */
 
-#ifdef SET_W25FLASH
-	static char *fsErrName(int fr);
-#endif
-
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -553,143 +550,36 @@ int main(void)
 
 #ifdef SET_W25FLASH
 
-      /*
+      //HAL_Delay(1000);
+
       chipPresent = W25qxx_Init();
-      if (chipPresent) {
-    	  uint32_t cid = W25qxx_getChipID();
-    	  if ((cid >= W25Q10) && (cid <= W25Q128)) {
-    		  //Report(NULL, true, "Flash memory chip found. ChipID:0x%X\r\n", cid);
-    		  //W25qxx_EraseChip();
-    		  W25qxx_EraseSector(0);
-    		  //
-          	  Report(NULL, true, "Write page 0...\r\n");
-          	  char temp[128];
-          	  int step = 32;//56;
-          	  int i, j = -1, k = PAGE_BUF_SIZE / 32;//W25qxx_getSectorSize() / step;
-          	  for (i = 0; i < PAGE_BUF_SIZE; i++) fs_work[i] = i & 0xff;
-          	  //W25qxx_WriteSector(fs_work, 0, 0, W25qxx_getSectorSize());
-          	  W25qxx_WritePage(fs_work, 0, 0, PAGE_BUF_SIZE);
-          	  while (++j < k) {
-        	  	  temp[0] = '\0';
-        	  	  for (i = 0; i < step; i++) sprintf(temp+strlen(temp), "%02X ", fs_work[i + (j * step)]);
-        	  	  Report(NULL, false, "%s\r\n", temp);
-          	  }
-
-          	  Report(NULL, true, "Read page 0...\r\n");
-          	  //W25qxx_RdSec(fs_work, 0, 0, W25qxx_getSectorSize());
-          	  W25qxx_ReadPage(fs_work, 0, 0, PAGE_BUF_SIZE);
-
-          	  j = -1;
-          	  while (++j < k) {
-        	  	  temp[0] = '\0';
-        	  	  for (i = 0; i < step; i++) sprintf(temp+strlen(temp), "%02X ", fs_work[i + (j * step)]);
-        	  	  Report(NULL, false, "%s\r\n", temp);
-          	  }
-    		  //
-    	  }
-      }
-      */
-      //------------------   FatFs   --------------------
-      /*chipPresent = W25qxx_Init();
       uint32_t cid = W25qxx_getChipID();
       if ( chipPresent && ((cid >= W25Q10) && (cid <= W25Q128)) ) validChipID = true;
       list_sector = W25qxx_getPageSize() << 2;
-//      char ps[16] = {0};
-      Fres = f_mount(&FatFs, "0:", 1);//USERPath, 1);
-      //
-      if ( chipPresent && ((cid >= W25Q10) && (cid <= W25Q128)) ) {
-    	  //W25qxx_EraseChip();
-    	  //strcpy(USERPath, "9:");
-    	  strcpy(ps, "/");
-    	  //Report(NULL, true, "Begin mount drive \"%.*s\"", sizeof(USERPath), USERPath);
-    	  Fres = f_mount(&FatFs, "", 1);//USERPath, 1);
-    	  Fres = FR_NO_FILESYSTEM;
-    	  switch (Fres) {
-    	  	  case FR_NO_FILESYSTEM:
-    	  		  Report(NULL, true, "Mount drive \"%.*s\" error #%u (%s)\r\n", sizeof(USERPath), USERPath, Fres, fsErrName(Fres));
-    	  		  //W25qxx_EraseChip();
-    	  		  Fres = f_mkfs("", FM_FAT, 0, fs_work, sizeof(fs_work));
-    	  		  if (!Fres) {
-    	  			  Report(NULL, true, "Make FAT fs OK\r\nBegin mount drive \"%.*s\"", sizeof(USERPath), USERPath);
-    	  			  Fres = f_mount(&FatFs, "", 1);//USERPath, 1);
-    	  			  Report(NULL, true, "Mount FAT fs return #%u (%s)\r\n", Fres, fsErrName(Fres));
-    	  		  } else {
-    	  			  Report(NULL, true, "Make FAT fs error #%u (%s)\r\n", Fres, fsErrName(Fres));
-    	  		  }
-    		  break;
-    	  	  case FR_OK:
-    	  		  mnt = true;
-    	  		  Report(NULL, true, "Mount drive \"%.*s\" OK\r\n", sizeof(USERPath), USERPath);
-    		  break;
-    	  	  default: Report(NULL, true, "Mount drive \"%.*s\" error #%u (%s)\r\n", sizeof(USERPath), USERPath, Fres, fsErrName(Fres));
-    	  }
-    	  //
-    	  if (!Fres) {
-    		  Fres = f_opendir(&dir, ps);                       // Open the directory
-    		  if (!Fres) {
-    			  dir_open = true;
-    			  FILINFO fno;
-    			  for (;;) {
-    				  Fres = f_readdir(&dir, &fno);                   // Read a directory item
-    				  if (Fres || fno.fname[0] == 0) {
-    					  if (Fres)
-    						  Report(NULL, true, "Error f_readdir() #%u (%s)\r\n", Fres, fsErrName(Fres));
-    					  else
-    						  Report(NULL, true, "Folder '%s' is empty\r\n", ps);
-    					  break;  // Break on error or end of dir
-    				  } else if (fno.fattrib & AM_DIR) {             // It is a directory
-    		        	  Report(NULL, true, "It is folder -> '%s'\r\n", fno.fname);
-    		          } else {                                       // It is a file.
-    		        	  Report(NULL, true, "%s/%s %u %u\r\n", ps, fno.fname, fno.fsize, fno.fattrib);
-    		          }
-    		      }
-    			  //if (f_closedir(&dir) == FR_OK) dir_open = false;
-    		  }
-    	  }
-    	  //
-    	  FIL fp;
-    	  if (!Fres && dir_open) {
-    		  sprintf(strf, "%s%s", ps, cfg);
-    		  Fres = f_open(&fp, strf, FA_CREATE_NEW | FA_WRITE);
-    		  if (!Fres) {
-    			  Report(NULL, true, "Create new file '%s' OK\r\n", strf);
-    			  int wrt = 0, dl = sprintf(strf, "#Configuration file:\r\n");
-    			  wrt = f_puts(strf, &fp);
-    			  if (wrt != dl) {
-    				  devError |= devFS;
-    				  Report(NULL, true, "Error while write file '%s'\r\n", strf);
-    			  } else Report(NULL, true, "File file '%s' write OK\r\n", strf);
-    			  Fres = f_close(&fp);
-    		  } else Report(NULL, true, "Create new file '%s' error #%u (%s)\r\n", strf, Fres, fsErrName(Fres));
-    	  }
-      	  //
-      	  if (!Fres && dir_open) {
-      		  if (!f_open(&fp, cfg, FA_READ)) {
-      			  Report(NULL, false, "File '%s' open OK", cfg);
-      			  while (f_gets(strf, sizeof(strf) - 1, &fp) != NULL) {
-      				  Report(NULL, false, "%s", strf);
-      				  fPresent++;
-      			  }
-      			  f_close(&fp);
-      			  if (!fPresent) devError |= devFS;
-      		  } else Report(NULL, true, "Error while open for reading file '%s'\r\n", cfg);
-      	  }
-      	  //
 
-      } else Report(NULL, true, "Flash memory chip Not Present\r\n");
-      //
-
-      if (dir_open) {
+#ifdef SET_FAT_FS
+      /*mnt = drvMount("");
+      if (mnt) {
+    	  //------------------------------------------------------------------------
+    	  dirList(dirName);
+    	  //
+    	  sprintf(strf, "#Configuration file:%s", eol);
+    	  mkFile(cfg, strf);
+    	  //
+    	  rdFile(cfg);
+    	  //------------------------------------------------------------------------
+      }*/
+      /*if (dir_open) {
     	  f_closedir(&dir);
     	  dir_open = false;
-    	  Report(NULL, true, "Close dir '%s'\r\n", ps);
+    	  Report(NULL, true, "Close dir '%s'%s", ps, eol);
       }
       if (mnt) {
     	  f_mount(NULL, USERPath, 1);
     	  mnt = false;
-    	  Report(NULL, true, "Umount drive '%.*s'\r\n", sizeof(USERPath), USERPath);
-      }
-	  */
+    	  Report(NULL, true, "Umount drive '%.*s'%s", sizeof(USERPath), USERPath, eol);
+      }*/
+#endif
 
 	  if (devError) errLedOn(NULL);
 
@@ -1240,6 +1130,8 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 #ifdef SET_W25FLASH
+//
+#ifdef SET_FAT_FS
 //------------------------------------------------------------------------------------
 static char *fsErrName(int fr)
 {
@@ -1286,6 +1178,97 @@ static char *fsErrName(int fr)
 	}
 	return "Unknown error";
 }
+//------------------------------------------------------------------------------------------
+bool drvMount(const char *path)
+{
+bool ret = false;
+
+	if (!validChipID) return ret;
+
+	FRESULT res = f_mount(&FatFs, path, 1);
+	if (res == FR_NO_FILESYSTEM) {
+		Report(NULL, true, "Mount drive \"%s\" error #%u (%s)%s", path, res, fsErrName(res), eol);
+		res = f_mkfs(path, FM_FAT, W25qxx_getBlockSize(), fs_work, sizeof(fs_work));
+		if (!res) {
+			Report(NULL, true, "Make FAT fs OK%s", path, eol);
+			res = f_mount(&FatFs, path, 1);
+    	} else {
+    		Report(NULL, true, "Make FAT fs error #%u (%s)%s", res, fsErrName(res), eol);
+    	}
+	}
+	if (!res) {
+		ret = true;
+		Report(NULL, true, "Mount drive \"%s\" OK%s", path, eol);
+	} else {
+		Report(NULL, false, "Mount drive \"%s\" error #%u (%s)%s", path, res, fsErrName(res), eol);
+	}
+
+	return ret;
+}
+//--------------------------------------------------------------------------------------------------------
+void dirList(const char *name_dir)
+{
+DIR dir;
+
+	FRESULT res = f_opendir(&dir, name_dir);
+	if (!res) {
+		FILINFO fno;
+		for (;;) {
+			res = f_readdir(&dir, &fno);
+			if (res || fno.fname[0] == 0) {
+				if (res) Report(NULL, true, "Error f_readdir() #%u (%s)%s", res, fsErrName(res), eol);
+				else Report(NULL, true, "Folder '%s' is empty%s", name_dir, eol);
+				break;  // Break on error or end of dir
+			} else if (fno.fattrib & AM_DIR) {             // It is a directory
+				Report(NULL, true, "It is folder -> '%s'%s", fno.fname, eol);
+			} else {                                       // It is a file.
+				Report(NULL, true, "%s/%s %u %u\r\n", name_dir, fno.fname, fno.fsize, fno.fattrib);
+			}
+		}
+		f_closedir(&dir);
+	}
+}
+//--------------------------------------------------------------------------------------------------------
+void mkFile(const char *name, char *text)
+{
+char tmp[128];
+FIL fp;
+
+	sprintf(tmp, "/%s", cfg);
+	FRESULT res = f_open(&fp, tmp, FA_CREATE_NEW | FA_WRITE);
+	if (!res) {
+		Report(NULL, true, "Create new file '%s' OK%s", tmp, eol);
+		int wrt = 0, dl = strlen(text);
+
+		wrt = f_puts(text, &fp);
+		if (wrt != dl) {
+			devError |= devFS;
+			Report(NULL, true, "Error while write file '%s'%s", tmp, eol);
+		} else Report(NULL, true, "File file '%s' write OK%s", tmp, eol);
+
+		res = f_close(&fp);
+	} else Report(NULL, true, "Create new file '%s' error #%u (%s)%s", tmp, res, fsErrName(res), eol);
+
+}
+//--------------------------------------------------------------------------------------------------------
+void rdFile(const char *name)
+{
+char tmp[128];
+FIL fp;
+
+	if (!f_open(&fp, name, FA_READ)) {
+		Report(NULL, false, "File '%s' open OK%s", name, eol);
+
+		while (f_gets(tmp, sizeof(tmp) - 1, &fp) != NULL)
+			Report(NULL, false, "%s", tmp);
+
+		f_close(&fp);
+	} else Report(NULL, true, "Error while open for reading file '%s'%s", name, eol);
+
+}
+//--------------------------------------------------------------------------------------------------------
+#endif
+//
 #endif
 //------------------------------------------------------------------------------------
 //             Функция выделяет из "кучи" блок памяти
@@ -1699,21 +1682,21 @@ void StartDefaultTask(void *argument)
 	Report(__func__, true, "Start main thread...(%lu)\r\n", xPortGetFreeHeapSize());
 
     //---------------------------------------------------------------
-			//------------------   FatFs   --------------------
-	      	chipPresent = W25qxx_Init();
-	      	uint32_t cid = W25qxx_getChipID();
-	      	if ( chipPresent && ((cid >= W25Q10) && (cid <= W25Q128)) ) validChipID = true;
-	      	list_sector = W25qxx_getPageSize() << 2;
-	      	/*Fres = f_mount(&FatFs, USERPath, 1);//USERPath, 1);
-	      	Report(NULL, true, "Mount drive \"%s\" error #%u (%s)\r\n", USERPath, Fres, fsErrName(Fres));
-	      	if (Fres == FR_NO_FILESYSTEM) {
-	      		Fres = f_mkfs(USERPath, FM_FAT, 0, fs_work, sizeof(fs_work));//W25qxx_getSectorSize());
-	      		if (!Fres) {
-	      			Report(NULL, true, "Make FAT fs OK\r\nBegin mount drive \"%s\"", USERPath);
-	      		} else {
-	      			Report(NULL, true, "Make FAT fs error #%u (%s)\r\n", Fres, fsErrName(Fres));
-	      		}
-	      	}*/
+
+#ifdef SET_FAT_FS
+      mnt = drvMount("");
+      if (mnt) {
+    	  //------------------------------------------------------------------------
+    	  dirList(dirName);
+    	  //
+    	  sprintf(strf, "#Configuration file:%s", eol);
+    	  mkFile(cfg, strf);
+    	  //
+    	  rdFile(cfg);
+    	  //------------------------------------------------------------------------
+      }
+#endif
+
 	//---------------------------------------------------------------
 
 	//   Описание и инициализация служебных переменных

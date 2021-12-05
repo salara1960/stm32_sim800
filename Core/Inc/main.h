@@ -475,6 +475,18 @@ uint32_t packNumber;
 void *getMem(size_t len);
 void freeMem(void *mem);
 
+//------------------------------------------------------------------------------------------
+#ifdef SET_W25FLASH
+	#ifdef SET_FAT_FS
+		bool drvMount(const char *path);
+		void dirList(const char *name_dir);
+		void mkFile(const char *name, char *text);
+		void rdFile(const char *name);
+	#endif
+#endif
+
+//------------------------------------------------------------------------------------------
+
 
 /* USER CODE END Private defines */
 

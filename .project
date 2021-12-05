@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
 	<name>stm32_bridge</name>
-	<comment />
+	<comment></comment>
 	<projects>
 	</projects>
 	<buildSpec>
@@ -20,67 +20,80 @@
 	</buildSpec>
 	<natures>
 		<nature>org.eclipse.cdt.core.cnature</nature>
-		<nature>org.eclipse.cdt.managedbuilder.core.managedBuildNature</nature>
 		<nature>org.eclipse.cdt.managedbuilder.core.ScannerConfigNature</nature>
-		<nature>fr.ac6.mcu.ide.core.MCUProjectNature</nature>
+		<nature>com.st.stm32cube.ide.mcu.MCUSW4STM32ConvertedProjectNature</nature>
+		<nature>org.eclipse.cdt.managedbuilder.core.managedBuildNature</nature>
 	</natures>
 	<linkedResources>
-		
-	<link>
-			<name>FreeRTOS/croutine.c</name>
-			<type>1</type>
-			<location>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FreeRTOS/Source/croutine.c</location>
-		</link><link>
-			<name>FreeRTOS/event_groups.c</name>
-			<type>1</type>
-			<location>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FreeRTOS/Source/event_groups.c</location>
-		</link><link>
-			<name>FreeRTOS/list.c</name>
-			<type>1</type>
-			<location>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FreeRTOS/Source/list.c</location>
-		</link><link>
-			<name>FreeRTOS/queue.c</name>
-			<type>1</type>
-			<location>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FreeRTOS/Source/queue.c</location>
-		</link><link>
-			<name>FreeRTOS/stream_buffer.c</name>
-			<type>1</type>
-			<location>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FreeRTOS/Source/stream_buffer.c</location>
-		</link><link>
-			<name>FreeRTOS/tasks.c</name>
-			<type>1</type>
-			<location>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FreeRTOS/Source/tasks.c</location>
-		</link><link>
-			<name>FreeRTOS/timers.c</name>
-			<type>1</type>
-			<location>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FreeRTOS/Source/timers.c</location>
-		</link><link>
-			<name>FreeRTOS/port.c</name>
-			<type>1</type>
-			<location>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F/port.c</location>
-		</link><link>
-			<name>FreeRTOS/heap_4.c</name>
-			<type>1</type>
-			<location>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang/heap_4.c</location>
-		</link><link>
-			<name>FreeRTOS/cmsis_os2.c</name>
-			<type>1</type>
-			<location>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.c</location>
-		</link><link>
+		<link>
 			<name>FatFs/diskio.c</name>
 			<type>1</type>
-			<location>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FatFs/src/diskio.c</location>
-		</link><link>
+			<locationURI>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FatFs/src/diskio.c</locationURI>
+		</link>
+		<link>
 			<name>FatFs/ff.c</name>
 			<type>1</type>
-			<location>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FatFs/src/ff.c</location>
-		</link><link>
+			<locationURI>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FatFs/src/ff.c</locationURI>
+		</link>
+		<link>
 			<name>FatFs/ff_gen_drv.c</name>
 			<type>1</type>
-			<location>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FatFs/src/ff_gen_drv.c</location>
-		</link><link>
+			<locationURI>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FatFs/src/ff_gen_drv.c</locationURI>
+		</link>
+		<link>
 			<name>FatFs/syscall.c</name>
 			<type>1</type>
-			<location>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FatFs/src/option/syscall.c</location>
-		</link></linkedResources>
+			<locationURI>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FatFs/src/option/syscall.c</locationURI>
+		</link>
+		<link>
+			<name>FreeRTOS/cmsis_os2.c</name>
+			<type>1</type>
+			<locationURI>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.c</locationURI>
+		</link>
+		<link>
+			<name>FreeRTOS/croutine.c</name>
+			<type>1</type>
+			<locationURI>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FreeRTOS/Source/croutine.c</locationURI>
+		</link>
+		<link>
+			<name>FreeRTOS/event_groups.c</name>
+			<type>1</type>
+			<locationURI>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FreeRTOS/Source/event_groups.c</locationURI>
+		</link>
+		<link>
+			<name>FreeRTOS/heap_4.c</name>
+			<type>1</type>
+			<locationURI>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang/heap_4.c</locationURI>
+		</link>
+		<link>
+			<name>FreeRTOS/list.c</name>
+			<type>1</type>
+			<locationURI>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FreeRTOS/Source/list.c</locationURI>
+		</link>
+		<link>
+			<name>FreeRTOS/port.c</name>
+			<type>1</type>
+			<locationURI>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F/port.c</locationURI>
+		</link>
+		<link>
+			<name>FreeRTOS/queue.c</name>
+			<type>1</type>
+			<locationURI>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FreeRTOS/Source/queue.c</locationURI>
+		</link>
+		<link>
+			<name>FreeRTOS/stream_buffer.c</name>
+			<type>1</type>
+			<locationURI>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FreeRTOS/Source/stream_buffer.c</locationURI>
+		</link>
+		<link>
+			<name>FreeRTOS/tasks.c</name>
+			<type>1</type>
+			<locationURI>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FreeRTOS/Source/tasks.c</locationURI>
+		</link>
+		<link>
+			<name>FreeRTOS/timers.c</name>
+			<type>1</type>
+			<locationURI>PARENT-2-PROJECT_LOC/Middlewares/Third_Party/FreeRTOS/Source/timers.c</locationURI>
+		</link>
+	</linkedResources>
 </projectDescription>
