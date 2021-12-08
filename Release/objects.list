@@ -4,7 +4,6 @@
 "Core/Src/func.o"
 "Core/Src/gps.o"
 "Core/Src/main.o"
-"Core/Src/mq135.o"
 "Core/Src/sms.o"
 "Core/Src/ssd1306.o"
 "Core/Src/stm32f4xx_hal_msp.o"

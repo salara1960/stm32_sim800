@@ -53,10 +53,13 @@ typedef struct {
 } gps_t;
 #pragma pack(pop)
 
+
+//
+
+//
 gps_t GPS;
 
-
-int gpsValidate(char *str);
+int gpsValidate(const char *str);
 float gpsToDec(float deg, char nsew);
 bool gpsParse(char *str);
 char *gpsPrint(char *str);

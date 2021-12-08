@@ -21,7 +21,7 @@ const char *nmea[] = {// cимвольные маркеры NMEA сообщен�
 //-----------------------------------------------------------------------------
 //  Функция проверяет на валидность строку на соответствие NMEA формату
 //
-int gpsValidate(char *str)
+int gpsValidate(const char *str)
 {
 char check[3] = {0};
 char calcCRCstr[3] = {0};
@@ -96,13 +96,13 @@ bool gpsParse(char *str)
 bool ret = false;
 int8_t idx = -1;
 
+
 	for (int8_t i = 0; i < MAX_NMEA_MSG; i++) {
 		if (!strncmp(str, nmea[i], NMEA_TYPE_LEN)) {
 			idx = i;
 			break;
 		}
 	}
-
 	if (idx == -1) return ret;
 
 	//  Подсчет контрольной суммы NMEA сообщения
@@ -123,6 +123,7 @@ int8_t idx = -1;
 	//  Проверка контрольной суммы
 	if (crc_in != crc_calc) {
 		devError |= devCRC;
+Report(__func__, true, "CRC Error: %s%s", str, eol);
 		return ret;
 	} else {
 		if (devError & devCRC) devError &= ~devCRC;

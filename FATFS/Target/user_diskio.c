@@ -218,7 +218,7 @@ DRESULT USER_ioctl (
     		res = RES_OK;
     	break;
     	case GET_BLOCK_SIZE:
-    		*(DWORD *)buff = W25qxx_getSectorSize();//W25qxx_getBlockSize();
+    		*(DWORD *)buff = W25qxx_getBlockSize();//W25qxx_getSectorSize();//W25qxx_getBlockSize();
     		res = RES_OK;
     	break;
         	default :
@@ -233,4 +233,5 @@ DRESULT USER_ioctl (
 }
 #endif /* _USE_IOCTL == 1 */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+/*****END OF FILE****/
+

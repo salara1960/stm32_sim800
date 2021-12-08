@@ -70,6 +70,10 @@ extern "C" {
 	#include "gps.h"
 #endif
 
+#ifdef SET_MQ135
+	#include "mq135.h"
+#endif
+
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -472,8 +476,22 @@ uint32_t packNumber;
 	s_recq_t smsq;
 #endif
 
+/*
 void *getMem(size_t len);
 void freeMem(void *mem);
+*/
+
+//------------------------------------------------------------------------------------------
+#ifdef SET_W25FLASH
+	#ifdef SET_FAT_FS
+		bool drvMount(const char *path);
+		void dirList(const char *name_dir);
+		void mkFile(const char *name, char *text);
+		void rdFile(const char *name);
+	#endif
+#endif
+
+//------------------------------------------------------------------------------------------
 
 
 /* USER CODE END Private defines */
