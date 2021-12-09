@@ -486,7 +486,7 @@ void freeMem(void *mem);
 	#ifdef SET_FAT_FS
 		bool drvMount(const char *path);
 		void dirList(const char *name_dir);
-		void mkFile(const char *name, char *text);
+		void wrFile(const char *name, char *text, bool update);
 		void rdFile(const char *name);
 	#endif
 #endif

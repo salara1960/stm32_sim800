@@ -10,6 +10,7 @@ C_SRCS += \
 ../Core/Src/func.c \
 ../Core/Src/gps.c \
 ../Core/Src/main.c \
+../Core/Src/mq135.c \
 ../Core/Src/sms.c \
 ../Core/Src/ssd1306.c \
 ../Core/Src/stm32f4xx_hal_msp.c \
@@ -26,6 +27,7 @@ OBJS += \
 ./Core/Src/func.o \
 ./Core/Src/gps.o \
 ./Core/Src/main.o \
+./Core/Src/mq135.o \
 ./Core/Src/sms.o \
 ./Core/Src/ssd1306.o \
 ./Core/Src/stm32f4xx_hal_msp.o \
@@ -42,6 +44,7 @@ C_DEPS += \
 ./Core/Src/func.d \
 ./Core/Src/gps.d \
 ./Core/Src/main.d \
+./Core/Src/mq135.d \
 ./Core/Src/sms.d \
 ./Core/Src/ssd1306.d \
 ./Core/Src/stm32f4xx_hal_msp.d \

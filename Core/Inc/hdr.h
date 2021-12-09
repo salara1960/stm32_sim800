@@ -16,7 +16,7 @@
 
 #ifdef SET_W25FLASH
 	//#define W25QXX_DEBUG
-	//#define SET_FAT_FS
+	#define SET_FAT_FS
 #endif
 
 #define SET_FLOAT_PART

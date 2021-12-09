@@ -69,14 +69,14 @@ osThreadId_t mainTaskHandle;
 const osThreadAttr_t mainTask_attributes = {
   .name = "mainTask",
   .priority = (osPriority_t) osPriorityNormal1,
-  .stack_size = 1024 * 4//2048 * 4
+  .stack_size = 1792 * 4//2048 * 4
 };
 /* Definitions for tempTask */
 osThreadId_t tempTaskHandle;
 const osThreadAttr_t tempTask_attributes = {
   .name = "tempTask",
   .priority = (osPriority_t) osPriorityNormal,
-  .stack_size = 256 * 4
+  .stack_size = 128 * 4//256 * 4
 };
 /* Definitions for rtcMutex */
 osMutexId_t rtcMutexHandle;
@@ -142,10 +142,12 @@ const osSemaphoreAttr_t sem_attributes = {
 //const char *version = "2.0.4 (02.12.2021)";//support local commands: read/write/erase sector from flash memory (w25q64)
 //const char *version = "2.0.5 (02.12.2021)";//up speed for UART1 to 230400 and use read/write from/to flash (w25q64) via DMA
 //const char *version = "2.1 (05.12.2021)";//project for STM32CubeIDE (first step for FatFs create/mount drive/open dir/mk-rd file)
-const char *version = "2.1.1 (08.12.2021)";
+//const char *version = "2.1.1 (08.12.2021)";
+const char *version = "2.2 (09.12.2021)";// now FAT fs support (w25q54); add local command for cat conf.cfg file
 
 
-volatile time_t epoch = 1638968175;//1638967160;//1638733115;//1638477416;//1638432926;
+
+volatile time_t epoch = 1639051400;//1638967160;//1638733115;//1638477416;//1638432926;
 						//1638385311;//1638298187;//1638033160;//1637954401;//1637916982;//1637870245;//1637768795;//1637673169;
 						//1637608799;//1637500605;//1637421807;//1637342030;//1637171390;//1637156150;//1637080774;//1637006802;
 						//1636985372;//1636907840;//1636714630;//1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
@@ -249,9 +251,11 @@ uint8_t spiRdy = 1;
 	//
 	#ifdef SET_FAT_FS
 		FATFS FatFs;
-		const char *cfg = "cfg.conf";
+		const char *cfg = "conf.cfg";
 		bool mnt = false;
 		const char *dirName = "/";
+		bool cat_flag = false;
+		const char *_cat  = "cat";
 	#endif
 	//
 	unsigned char fs_work[_MAX_SS] = {0};
@@ -555,7 +559,8 @@ int main(void)
       list_sector = W25qxx_getPageSize() << 2;
 
 #ifdef SET_FAT_FS
-      /*mnt = drvMount("");
+      /*
+      mnt = drvMount(USERPath);
       if (mnt) {
     	  //------------------------------------------------------------------------
     	  dirList(dirName);
@@ -1176,6 +1181,23 @@ static char *fsErrName(int fr)
 	return "Unknown error";
 }
 //------------------------------------------------------------------------------------------
+static char *attrName(uint8_t attr)
+{
+	switch (attr) {
+		case AM_RDO://	0x01	/* Read only */
+			return "Read only";
+		case AM_HID://	0x02	/* Hidden */
+			return "Hidden";
+		case AM_SYS://	0x04	/* System */
+			return "System";
+		case AM_DIR://	0x10	/* Directory */
+			return "Directory";
+		case AM_ARC://	0x20	/* Archive */
+			return "Archive";
+		default : return "Unknown";
+	}
+}
+//------------------------------------------------------------------------------------------
 bool drvMount(const char *path)
 {
 bool ret = false;
@@ -1184,10 +1206,10 @@ bool ret = false;
 
 	FRESULT res = f_mount(&FatFs, path, 1);
 	if (res == FR_NO_FILESYSTEM) {
-		Report(NULL, true, "Mount drive \"%s\" error #%u (%s)%s", path, res, fsErrName(res), eol);
+		Report(NULL, true, "Mount drive '%s' error #%u (%s)%s", path, res, fsErrName(res), eol);
 		res = f_mkfs(path, FM_FAT, W25qxx_getBlockSize(), fs_work, sizeof(fs_work));
 		if (!res) {
-			Report(NULL, true, "Make FAT fs OK%s", path, eol);
+			Report(NULL, true, "Make FAT fs on drive '%s' OK%s", path, eol);
 			res = f_mount(&FatFs, path, 1);
     	} else {
     		Report(NULL, true, "Make FAT fs error #%u (%s)%s", res, fsErrName(res), eol);
@@ -1195,9 +1217,9 @@ bool ret = false;
 	}
 	if (!res) {
 		ret = true;
-		Report(NULL, true, "Mount drive \"%s\" OK%s", path, eol);
+		Report(NULL, true, "Mount drive '%s' OK%s", path, eol);
 	} else {
-		Report(NULL, false, "Mount drive \"%s\" error #%u (%s)%s", path, res, fsErrName(res), eol);
+		Report(NULL, false, "Mount drive '%s' error #%u (%s)%s", path, res, fsErrName(res), eol);
 	}
 
 	return ret;
@@ -1210,29 +1232,45 @@ DIR dir;
 	FRESULT res = f_opendir(&dir, name_dir);
 	if (!res) {
 		FILINFO fno;
+		int cnt = -1;
+		Report(NULL, true, "Read folder '%s':%s", name_dir, eol);
 		for (;;) {
 			res = f_readdir(&dir, &fno);
+			cnt++;
 			if (res || fno.fname[0] == 0) {
-				if (res) Report(NULL, true, "Error f_readdir() #%u (%s)%s", res, fsErrName(res), eol);
-				else Report(NULL, true, "Folder '%s' is empty%s", name_dir, eol);
-				break;  // Break on error or end of dir
-			} else if (fno.fattrib & AM_DIR) {             // It is a directory
-				Report(NULL, true, "It is folder -> '%s'%s", fno.fname, eol);
-			} else {                                       // It is a file.
-				Report(NULL, true, "%s/%s %u %u\r\n", name_dir, fno.fname, fno.fsize, fno.fattrib);
+				if (!cnt) Report(NULL, false, "\tFolder '%s' is empty%s", name_dir, eol);
+				break;
+			} else if (fno.fattrib & AM_DIR) {// It is a directory
+				Report(NULL, false, "\tIt is folder -> '%s'%s", fno.fname, eol);
+			} else {// It is a file.
+				Report(NULL, false, "\tname:%s, size:%u bytes, attr:%s%s",
+									fno.fname,
+									fno.fsize,
+									attrName(fno.fattrib),
+									eol);
 			}
 		}
 		f_closedir(&dir);
 	}
 }
 //--------------------------------------------------------------------------------------------------------
-void mkFile(const char *name, char *text)
+void wrFile(const char *name, char *text, bool update)
 {
 char tmp[128];
 FIL fp;
+FRESULT res = FR_NO_FILE;
 
 	sprintf(tmp, "/%s", cfg);
-	FRESULT res = f_open(&fp, tmp, FA_CREATE_NEW | FA_WRITE);
+	if (!update) {
+		res = f_open(&fp, tmp, FA_READ);
+		if (res == FR_OK) {
+			res = f_close(&fp);
+			Report(NULL, true, "File '%s' allready present%s", tmp, eol);
+			return;
+		}
+	}
+
+	res = f_open(&fp, tmp, FA_CREATE_NEW | FA_WRITE);
 	if (!res) {
 		Report(NULL, true, "Create new file '%s' OK%s", tmp, eol);
 		int wrt = 0, dl = strlen(text);
@@ -1254,7 +1292,7 @@ char tmp[128];
 FIL fp;
 
 	if (!f_open(&fp, name, FA_READ)) {
-		Report(NULL, false, "File '%s' open OK%s", name, eol);
+		Report(NULL, true, "File '%s' open OK%s", name, eol);
 
 		while (f_gets(tmp, sizeof(tmp) - 1, &fp) != NULL)
 			Report(NULL, false, "%s", tmp);
@@ -1344,7 +1382,13 @@ void serialLOG()
 					set_Date((time_t)extDate);
 				}
 			} else setDate = true;
-		} else if (strstr(RxBuf, _restart)) {
+		}
+#ifdef SET_FAT_FS
+		else if (!strncmp(RxBuf, _cat, strlen(_cat))) {
+			if (!cat_flag && !gsmFlags.busy) cat_flag = 1;
+		}
+#endif
+		else if (!strncmp(RxBuf, _restart, strlen(_restart))) {
 			if (!restart_flag) restart_flag = 1;
 		} else if ( (strstr(RxBuf, "AT")) || (strstr(RxBuf, "at")) ) {// enter AT_commands
 			if (gsmToFlag) {
@@ -1358,21 +1402,21 @@ void serialLOG()
 				prn_cmd = false;
 				mk_at = true;
 			}
-		} else if (strstr(RxBuf, _flags)) {
+		} else if (!strncmp(RxBuf, _flags, strlen(_flags))) {
 			if (!prn_flags) prn_flags = true;
-		} else if (strstr(RxBuf, _sntp)) {
+		} else if (!strncmp(RxBuf, _sntp, strlen(_sntp))) {
 			if (!sntp_flag && !gsmFlags.busy) sntp_flag = 1;
-		} else if (strstr(RxBuf, _radio)) {
+		} else if (!strncmp(RxBuf, _radio, strlen(_radio))) {
 			if (!radio_flag && !gsmFlags.busy) radio_flag = 1;
-		} else if (strstr(RxBuf, _rlist)) {
+		} else if (!strncmp(RxBuf, _rlist, strlen(_rlist))) {
 			if (!prn_rlist) prn_rlist = true;
-		} else if (strstr(RxBuf, _freemem)) {
+		} else if (!strncmp(RxBuf, _freemem, strlen(_freemem))) {
 			if (!prn_freemem) prn_freemem = true;
-		} else if (strstr(RxBuf, _net)) {
+		} else if (!strncmp(RxBuf, _net, strlen(_net))) {
 			if (!net_flag && !gsmFlags.busy) net_flag = true;
-		} else if (strstr(RxBuf, _ini)) {
+		} else if (!strncmp(RxBuf, _ini, strlen(_ini))) {
 			if (!ini_flag && !gsmFlags.busy) ini_flag = 1;
-		} else if (strstr(RxBuf, _stop)) {
+		}else if (!strncmp(RxBuf, _stop, strlen(_stop))) {
 			if (gsmFlags.connect) {
 				strcpy(RxBuf, cmd_any[cCLOSE].cmd);
 				prn_cmd = true;
@@ -1383,20 +1427,20 @@ void serialLOG()
 				prn_cmd = true;
 				mk_at = true;
 			}
-		} else if (strstr(RxBuf, _clr)) {
+		} else if (!strncmp(RxBuf, _clr, strlen(_clr))) {
 			clr_flag = true;
 		}
 #ifdef SET_W25FLASH
-		else if (strstr(RxBuf, _read)) {
+		else if (!strncmp(RxBuf, _read, strlen(_read))) {
 			cmd_sector = sRead;
 			uki = RxBuf + strlen(_read);
-		} else if (strstr(RxBuf, _write)) {
+		} else if (!strncmp(RxBuf, _write, strlen(_write))) {
 			cmd_sector = sWrite;
 			uki = RxBuf + strlen(_write);
-		} else if (strstr(RxBuf, _erase)) {
+		} else if (!strncmp(RxBuf, _erase, strlen(_erase))) {
 			cmd_sector = sErase;
 			uki = RxBuf + strlen(_erase);
-		} else if (strstr(RxBuf, _next)) {
+		} else if (!strncmp(RxBuf, _next, strlen(_next))) {
 			cmd_sector = sNext;
 		}
 		if ((cmd_sector != sNone) && validChipID) {
@@ -1448,9 +1492,9 @@ void serialLOG()
 		}
 #endif
 #ifdef SET_GPS
-		else if (strstr(RxBuf, _ongps)) {
+		else if (!strncmp(RxBuf, _ongps, strlen(_ongps))) {
 			if (!prnGpsFlag) prnGpsFlag = true;
-		} else if (strstr(RxBuf, _offgps)) {
+		} else if (!strncmp(RxBuf, _offgps, strlen(_offgps))) {
 			if (prnGpsFlag) prnGpsFlag = false;
 		}
 #endif
@@ -1470,7 +1514,8 @@ void serialLOG()
 		}
 		//--------------------------------------------------------------
 
-		rx_uk = 0; memset(RxBuf, 0, sizeof(RxBuf));
+		rx_uk = 0;
+		memset(RxBuf, 0, sizeof(RxBuf));
 
 	} else rx_uk++;
 
@@ -1700,6 +1745,7 @@ unsigned int res = 0;
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
+
 	/* Infinite loop */
 	//---------------------------------------------------------------
 	//
@@ -1710,21 +1756,24 @@ void StartDefaultTask(void *argument)
 	Report(__func__, true, "Start main thread...(%lu)\r\n", xPortGetFreeHeapSize());
 
     //---------------------------------------------------------------
-
+/**/
 #ifdef SET_FAT_FS
-      mnt = drvMount("");
-      if (mnt) {
-    	  //------------------------------------------------------------------------
-    	  dirList(dirName);
-    	  //
-    	  sprintf(strf, "#Configuration file:%s", eol);
-    	  mkFile(cfg, strf);
-    	  //
-    	  rdFile(cfg);
-    	  //------------------------------------------------------------------------
-      }
-#endif
 
+	osDelay(500);
+
+    mnt = drvMount(USERPath);
+    if (mnt) {
+    	//------------------------------------------------------------------------
+    	dirList(dirName);
+    	//
+    	sprintf(strf, "#Configuration file:%s", eol);
+    	wrFile(cfg, strf, false);
+    	//
+    	rdFile(cfg);
+    	//------------------------------------------------------------------------
+    }
+#endif
+/**/
 
     //---------------------------------------------------------------
 //#ifdef SET_GPS
@@ -2336,6 +2385,14 @@ void StartDefaultTask(void *argument)
 			last_cmd_sector =  cmd_sector;
 			cmd_sector = sNone;
 		}
+		//
+#ifdef SET_FAT_FS
+		if (cat_flag) {
+			cat_flag = 0;
+			rdFile(cfg);
+		}
+#endif
+		//
 #endif
 		//
 		osDelay(10);
