@@ -46,6 +46,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
+
 I2C_HandleTypeDef hi2c1;
 DMA_HandleTypeDef hdma_i2c1_tx;
 
@@ -68,15 +70,15 @@ DMA_HandleTypeDef hdma_usart2_tx;
 osThreadId_t mainTaskHandle;
 const osThreadAttr_t mainTask_attributes = {
   .name = "mainTask",
-  .priority = (osPriority_t) osPriorityNormal1,
-  .stack_size = 1792 * 4//2048 * 4
+  .stack_size = 1792 * 4,
+  .priority = (osPriority_t) osPriorityNormal2,
 };
 /* Definitions for tempTask */
 osThreadId_t tempTaskHandle;
 const osThreadAttr_t tempTask_attributes = {
   .name = "tempTask",
-  .priority = (osPriority_t) osPriorityNormal,
-  .stack_size = 128 * 4//256 * 4
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal1,
 };
 /* Definitions for rtcMutex */
 osMutexId_t rtcMutexHandle;
@@ -143,11 +145,13 @@ const osSemaphoreAttr_t sem_attributes = {
 //const char *version = "2.0.5 (02.12.2021)";//up speed for UART1 to 230400 and use read/write from/to flash (w25q64) via DMA
 //const char *version = "2.1 (05.12.2021)";//project for STM32CubeIDE (first step for FatFs create/mount drive/open dir/mk-rd file)
 //const char *version = "2.1.1 (08.12.2021)";
-const char *version = "2.2 (09.12.2021)";// now FAT fs support (w25q54); add local command for cat conf.cfg file
+//const char *version = "2.2 (09.12.2021)";// now FAT fs support (w25q54); add local command for cat conf.cfg file
+const char *version = "2.3 (10.12.2021)";// add MQ135 sensor (first step)
 
 
 
-volatile time_t epoch = 1639051400;//1638967160;//1638733115;//1638477416;//1638432926;
+
+volatile time_t epoch = 1639166173;//1639051400;//1638967160;//1638733115;//1638477416;//1638432926;
 						//1638385311;//1638298187;//1638033160;//1637954401;//1637916982;//1637870245;//1637768795;//1637673169;
 						//1637608799;//1637500605;//1637421807;//1637342030;//1637171390;//1637156150;//1637080774;//1637006802;
 						//1636985372;//1636907840;//1636714630;//1636650430;//1636546510;//1636394530;//1636366999;//1636288627;
@@ -228,6 +232,12 @@ UART_HandleTypeDef *portGSM = &huart2;//порт GSM модуля (sim800l)
 I2C_HandleTypeDef *portOLED = &hi2c1;//порт OLED дисплея (ssd1306)
 SPI_HandleTypeDef *portFLASH = &hspi1;//порт flash-памяти (w25q64)
 RTC_HandleTypeDef *portRTC = &hrtc;
+uint32_t valMQ = 0;
+bool readyMQ = false;
+bool alarmMQ = false;
+//#ifdef SET_MQ135
+	ADC_HandleTypeDef *portMQ135 = &hadc1;
+//#endif
 #ifdef SET_TEMP_SENSOR
 	TIM_HandleTypeDef *tmrDS18B20 = &htim10;
 	float temp = 0.0;
@@ -317,6 +327,15 @@ volatile bool prn_rlist = false;
 uint32_t tmr_send = 0;
 const uint32_t send_period = _10s;
 
+//
+char _apn[32];//APN, eol,
+char _login[32];//LOGIN, eol,
+char _password[32];//PASSWORD, eol,
+char _srv_sntp[64];//SNTP, eol,
+uint8_t _tzone;//TZONE, eol,
+char _srv_adr[64];//SRV_ADR, eol,
+uint16_t _srv_port;//SRV_PORT, eol);
+//
 
 //------------   AT команды GSM модуля   ------------------
 
@@ -459,6 +478,7 @@ static void MX_TIM3_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_USART6_UART_Init(void);
 static void MX_TIM10_Init(void);
+static void MX_ADC1_Init(void);
 void StartDefaultTask(void *argument);
 void StartTemp(void *argument);
 
@@ -509,6 +529,7 @@ int main(void)
   MX_USART6_UART_Init();
   MX_TIM10_Init();
   MX_FATFS_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
 
   	  //   мигнем тремя светодиодами
@@ -540,6 +561,14 @@ int main(void)
 #endif
 
       Report(NULL, true, "Start application version '%s'\r\n", version);
+
+      strncpy(_apn, APN, sizeof(_apn) - 1);
+      strncpy(_login, LOGIN, sizeof(_login) - 1);
+      strncpy(_password, PASSWORD, sizeof(_password) - 1);
+      strncpy(_srv_sntp, SNTP, sizeof(_srv_sntp) - 1);
+      _tzone = TZONE;
+      strncpy(_srv_adr, SRV_ADR, sizeof(_srv_adr) - 1);
+      _srv_port = SRV_PORT;
 
       cmds = (char *)calloc(1, CMD_LEN + 1);//выделяем память под буфер команд GSM модуля
 #ifdef SET_SMS
@@ -702,7 +731,6 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-  RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
 
   /** Configure the main internal regulator output voltage
   */
@@ -737,12 +765,56 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_RTC;
-  PeriphClkInitStruct.RTCClockSelection = RCC_RTCCLKSOURCE_LSI;
-  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
+}
+
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc1.Init.ScanConvMode = DISABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.DMAContinuousRequests = DISABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
     Error_Handler();
   }
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Rank = 1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
 }
 
 /**
@@ -971,7 +1043,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 230400;//115200;
+  huart1.Init.BaudRate = 230400;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
@@ -1111,7 +1183,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pin = SPI1_NSS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(SPI1_NSS_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LED_ERROR_Pin LED_Pin CON_LED_Pin */
@@ -1121,12 +1193,22 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : MQ135_EXTI1_Pin */
+  GPIO_InitStruct.Pin = MQ135_EXTI1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(MQ135_EXTI1_GPIO_Port, &GPIO_InitStruct);
+
   /*Configure GPIO pin : DS18B20_Pin */
   GPIO_InitStruct.Pin = DS18B20_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(DS18B20_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI1_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 
 }
 
@@ -1265,12 +1347,12 @@ FRESULT res = FR_NO_FILE;
 		res = f_open(&fp, tmp, FA_READ);
 		if (res == FR_OK) {
 			res = f_close(&fp);
-			Report(NULL, true, "File '%s' allready present%s", tmp, eol);
+			Report(NULL, true, "File '%s' allready present and update has't been ordered%s", tmp, eol);
 			return;
 		}
 	}
 
-	res = f_open(&fp, tmp, FA_CREATE_NEW | FA_WRITE);
+	res = f_open(&fp, tmp, FA_CREATE_ALWAYS | FA_WRITE);
 	if (!res) {
 		Report(NULL, true, "Create new file '%s' OK%s", tmp, eol);
 		int wrt = 0, dl = strlen(text);
@@ -1292,7 +1374,7 @@ char tmp[128];
 FIL fp;
 
 	if (!f_open(&fp, name, FA_READ)) {
-		Report(NULL, true, "File '%s' open OK%s", name, eol);
+		Report(NULL, true, "File '%s' open for reading OK%s", name, eol);
 
 		while (f_gets(tmp, sizeof(tmp) - 1, &fp) != NULL)
 			Report(NULL, false, "%s", tmp);
@@ -1706,32 +1788,36 @@ void HAL_SPI_ErrorCallback(SPI_HandleTypeDef *hspi)
 	spiDone(hspi);
 	devError |= devSPI;
 }
+//#ifdef SET_MQ135
 //-------------------------------------------------------------------------------------------
-
-/*
-//-----------------------------------------------------------------------------
-//__STATIC_FORCEINLINE unsigned int nmeaCRC(char *uk, uint32_t len)
-inline unsigned int nmeaCRC(char *uk, uint32_t len)
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-unsigned int res = 0;
+	if (GPIO_Pin != MQ135_EXTI1_Pin) return;
 
-	__asm volatile ("push {r0,r1,r2,r3}\n\t"
-					"ldr r1, %1\n\t"
-                    "ldr r2, %2\n\t"
-					"ldr r0, #0\n\t"
-					"loop: ldrb r3, [r1]\n\t"
-                    "eor r0, r3\n\t"
-					"and r0, #255\n\t"
-					"add r1, #1\n\t"
-					"subs r2, #1\n\t"
-					"cbnz r2, loop\n\t"
-					"str r0, %0\n\t"
-			        "pop {ro,r1,r2,r3}" : "=r" (res) : "r" (uk), "r" (len) : "r0");
-
-	return res;
+	if (HAL_GPIO_ReadPin(MQ135_EXTI1_GPIO_Port, MQ135_EXTI1_Pin) == GPIO_PIN_RESET) {
+		HAL_GPIO_WritePin(CON_LED_GPIO_Port, CON_LED_Pin, GPIO_PIN_RESET);//ON
+		alarmMQ = true;
+	} else {
+		HAL_GPIO_WritePin(CON_LED_GPIO_Port, CON_LED_Pin, GPIO_PIN_SET);//OFF
+		alarmMQ = false;
+	}
 }
-//-----------------------------------------------------------------------------
-*/
+//-------------------------------------------------------------------------------------------
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
+{
+	if (hadc->Instance == ADC1) {
+		valMQ = HAL_ADC_GetValue(hadc);
+		readyMQ = true;
+	}
+}
+//-------------------------------------------------------------------------------------------
+void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *hadc)
+{
+	if (hadc->Instance == ADC1) devError |= devMQ;
+}
+//-------------------------------------------------------------------------------------------
+//#endif
+
 
 /* USER CODE END 4 */
 
@@ -1756,6 +1842,8 @@ void StartDefaultTask(void *argument)
 	Report(__func__, true, "Start main thread...(%lu)\r\n", xPortGetFreeHeapSize());
 
     //---------------------------------------------------------------
+	//HAL_ADC_Start_IT(portMQ135);
+	//---------------------------------------------------------------
 /**/
 #ifdef SET_FAT_FS
 
@@ -1766,7 +1854,22 @@ void StartDefaultTask(void *argument)
     	//------------------------------------------------------------------------
     	dirList(dirName);
     	//
-    	sprintf(strf, "#Configuration file:%s", eol);
+    	sprintf(strf, "#Configuration file:%s"
+    			      "APN:%s%s"
+					  "LOGIN:%s%s"
+				      "PASSWORD:%s%s"
+				      "SNTP:%s%s"
+				      "TZONE:%u%s"
+				      "SRV_ADR:%s%s"
+    			      "SRV_PORT:%u%s",
+    			      eol,
+					  _apn, eol,
+					  _login, eol,
+					  _password, eol,
+					  _srv_sntp, eol,
+					  _tzone, eol,
+					  _srv_adr, eol,
+					  _srv_port, eol);
     	wrFile(cfg, strf, false);
     	//
     	rdFile(cfg);
@@ -1776,9 +1879,8 @@ void StartDefaultTask(void *argument)
 /**/
 
     //---------------------------------------------------------------
-//#ifdef SET_GPS
       /*
-      static char nmeaTest[96];
+      char nmeaTest[96];
       strcpy(nmeaTest, "$GNGGA,163522.000,5443.66276,N,02032.21629,E,1,06,3.1,-5.0,M,0.0,M,,*57");
       char vrem[MAX_GSM_BUF] = {0};
       //
@@ -1786,12 +1888,11 @@ void StartDefaultTask(void *argument)
       char *u_start = &nmeaTest[1];
       char *u_end = strchr(u_start, '*');
       if (u_end) {
-    	  //u_crc = nmeaCRC(u_start, (uint32_t)(u_end - u_start));
-    	  //sprintf(vrem, "CRC Test: '%s' - 0x%X", nmeaTest, u_crc);
-    	  //Report(NULL, false, "%s%s", vrem, eol);
+    	  u_crc = nmeaCRC(u_start, (uint32_t)(u_end - u_start));
+    	  sprintf(vrem, "CRC Test: '%s' - 0x%X", nmeaTest, u_crc);
+    	  Report(NULL, false, "%s%s", vrem, eol);
       }
       */
-//#endif
 	//---------------------------------------------------------------
 
 	//   Описание и инициализация служебных переменных
@@ -1827,10 +1928,11 @@ void StartDefaultTask(void *argument)
 
 	while (!restart_flag) {
 
-#ifdef SET_OLED_I2C
+
 		//-----   блок обработки секундного события   -----
 		if (check_tmr10(cur_sec)) {
-			cur_sec = get_tmr10(_900ms);
+			cur_sec = get_tmr10(_850ms);
+#ifdef SET_OLED_I2C
 			sec_to_string(scr);
 			i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, 1, true);
 			if (dsOK != sensPresent) {
@@ -1843,15 +1945,24 @@ void StartDefaultTask(void *argument)
 #ifdef SET_FLOAT_PART
 					s_float_t flo = {0, 0};
 					floatPart(temp, &flo);
-					sprintf(scr, "temp:%lu.%lu%c", flo.cel, flo.dro / 10000, 31);
+					sprintf(scr, "%lu.%lu%c", flo.cel, flo.dro / 10000, 31);
+//#ifdef SET_MQ135
+					sprintf(scr+strlen(scr), " %lu", valMQ);
+//#endif
 #else
-					sprintf(scr, "temp:%5.2f", temp);
+					sprintf(scr, "%.2f%c", temp, 31);
 #endif
 					i2c_ssd1306_text_xy(mkLineCenter(scr, FONT_WIDTH), 1, temp_line, false);
 				}
 			}
-		}
 #endif
+//#ifdef SET_MQ135
+			if (alarmMQ) {
+				Report(NULL, true, "MQ135: Threshold value exceeded, value=%lu%s", valMQ, eol);
+			}
+//#endif
+		}
+
 		//-------------------------------------------------------
 
 		//-----   Блок чтения команд из очереди и отправки их GSM модулю   -----
@@ -1899,7 +2010,8 @@ void StartDefaultTask(void *argument)
 				result = parseEvent(buf2, (void *)&gsmFlags);// Анализ сообщения от модуля GSM
 				//
 				if (gsmFlags.begin) {//  Начать работу нитки с самого начала (по события 'SMS Ready')
-					*(unsigned int *)&gsmFlags = 0;
+					uint32_t *bgf = (uint32_t *)&gsmFlags;
+					*bgf = 0;
 					gsmFlags.sReady = 1;
 					cur_cmd = grp_cmd = -1;
 					cmd_err = CMD_REPEAT;
@@ -2115,11 +2227,11 @@ void StartDefaultTask(void *argument)
 									switch (grp_cmd) {
 										case seqTime:
 											if (cur_cmd == tSAPBR31) {//{"AT+SAPBR=3,1,\"APN\",","OK"},//\"internet\"\r\n" | "APN" + eol
-												lens = sprintf(cmdBuf, "%s\"%s\"%s", uk_cmd, APN, eol);
+												lens = sprintf(cmdBuf, "%s\"%s\"%s", uk_cmd, _apn, eol);
 												uk_cmd = &cmdBuf[0];
 											} else if (cur_cmd == tCNTP_SRV) {//{"AT+CNTP=","OK"},//\"pool.ntp.org\",8\r\n" | "SNTP",TZONE<<2 + eol
-												strncpy(cntpSRV, SNTP, sizeof(cntpSRV) - 1);
-												lens = sprintf(cmdBuf, "%s\"%s\",%u%s", uk_cmd, SNTP, (TZONE << 2), eol);
+												strncpy(cntpSRV, _srv_sntp, sizeof(cntpSRV) - 1);
+												lens = sprintf(cmdBuf, "%s\"%s\",%u%s", uk_cmd, _srv_sntp, (_tzone << 2), eol);
 												uk_cmd = &cmdBuf[0];
 											} else if (cur_cmd == tCCLK) gsmFlags.okDT = 0;
 										break;
@@ -2145,10 +2257,10 @@ void StartDefaultTask(void *argument)
 										break;
 										case seqNet:
 											if (cur_cmd == nCSTT) {//"AT+CSTT=\"internet\",\"beeline\",\"beeline\"\r\n","OK", | "APN","LOGIN","PASSWORD" + eol
-												lens = sprintf(cmdBuf, "%s\"%s\",\"%s\",\"%s\"%s", uk_cmd, APN, LOGIN, PASSWORD, eol);
+												lens = sprintf(cmdBuf, "%s\"%s\",\"%s\",\"%s\"%s", uk_cmd, _apn, _login, _password, eol);
 												uk_cmd = &cmdBuf[0];
 											} else if (cur_cmd == nCIPSTART) {//"AT+CIPSTART=\"TCP\",","CONNECT OK"//\"213.149.17.142\",8778\r\n","CONNECT OK"//after OK -> CONNECT OK | "SRV"
-												lens = sprintf(cmdBuf, "%s\"%s\",%u%s", uk_cmd, SRV_ADR, SRV_PORT, eol);
+												lens = sprintf(cmdBuf, "%s\"%s\",%u%s", uk_cmd, _srv_adr, _srv_port, eol);
 												cmdBuf[lens] = '\0';
 												uk_cmd = &cmdBuf[0];
 											}
@@ -2458,32 +2570,37 @@ void StartTemp(void *argument)
 
 	if (TempSensorCount > 0) sensPresent = true;//  Датчик обнаружен !!!
 
+	//---------------------------------------------------------------
+//#ifdef SET_MQ135
+	HAL_ADC_Start_IT(portMQ135);
+//#endif
+	//---------------------------------------------------------------
 
 	//  Цикл чтения данных и преобразования значения температуры в градусы Цельсия
 	while (!restart_flag && sensPresent) {//Ds18b20TryToFind)
 
 		for (uint8_t i = 0; i < TempSensorCount; i++) {
-			osDelay(50);
+			Ds18b20Delay(50);
 			DS18B20_SetResolution(&OneWire, ds18b20[i].Address, DS18B20_Resolution_12bits);
-			osDelay(50);
+			Ds18b20Delay(50);
 			DS18B20_DisableAlarmTemperature(&OneWire,  ds18b20[i].Address);
 		}
 		for (;;) {
 			while (!_DS18B20_UPDATE_INTERVAL_MS) {
 				if (Ds18b20StartConvert == 1) break;
-				osDelay(10);
+				Ds18b20Delay(1);//10
 			}
 			Ds18b20Timeout=_DS18B20_CONVERT_TIMEOUT_MS/10;
 			DS18B20_StartAll(&OneWire);
-			osDelay(100);
+			Ds18b20Delay(100);
 			while (!DS18B20_AllDone(&OneWire)) {
-				osDelay(10);
+				Ds18b20Delay(10);
 				Ds18b20Timeout -= 1;
 				if (!Ds18b20Timeout) break;
 			}
 			if (Ds18b20Timeout > 0) {
 				for (uint8_t i = 0; i < TempSensorCount; i++) {
-					osDelay(1000);
+					Ds18b20Delay(1000);
 					ds18b20[i].DataIsValid = DS18B20_Read(&OneWire, ds18b20[i].Address, &ds18b20[i].Temperature);
 				}
 			} else {
@@ -2493,8 +2610,15 @@ void StartTemp(void *argument)
 			fTemp = ds18b20[0].Temperature;// Глобальная переменная для хранения значения температуры !!!
 			//
 			Ds18b20StartConvert = 0;
-			osDelay(2000);//_DS18B20_UPDATE_INTERVAL_MS);
+
+			Ds18b20Delay(2000);//_DS18B20_UPDATE_INTERVAL_MS);
 			//
+//#ifdef SET_MQ135
+			if (readyMQ) {
+				readyMQ = false;
+				HAL_ADC_Start_IT(portMQ135);
+			}
+//#endif
 		}
 
 	}
@@ -2507,7 +2631,7 @@ void StartTemp(void *argument)
   /* USER CODE END StartTemp */
 }
 
- /**
+/**
   * @brief  Period elapsed callback in non blocking mode
   * @note   This function is called  when TIM1 interrupt took place, inside
   * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
@@ -2580,4 +2704,3 @@ void assert_failed(uint8_t *file, uint32_t line)
 }
 #endif /* USE_FULL_ASSERT */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

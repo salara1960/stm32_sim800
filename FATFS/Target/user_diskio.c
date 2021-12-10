@@ -233,5 +233,3 @@ DRESULT USER_ioctl (
 }
 #endif /* _USE_IOCTL == 1 */
 
-/*****END OF FILE****/
-

@@ -305,10 +305,10 @@ void W25qxx_EraseSector(uint32_t SectorAddr)
 
     w25qxx.Lock = 1;
 
-//#ifdef W25QXX_DEBUG
+#ifdef W25QXX_DEBUG
     uint32_t StartTime = HAL_GetTick();
     Report(__func__, true, "%u Begin...", SectorAddr);
-//#endif
+#endif
 
     W25qxx_WaitForWriteEnd();
     SectorAddr = SectorAddr * w25qxx.SectorSize;
@@ -324,10 +324,10 @@ void W25qxx_EraseSector(uint32_t SectorAddr)
 
     W25qxx_WaitForWriteEnd();
 
-//#ifdef W25QXX_DEBUG
+#ifdef W25QXX_DEBUG
     uint32_t dur = HAL_GetTick() - StartTime;
     Report(NULL, false, " done after %u ms (%u sec)!\r\n", dur, dur / 1000);
-//#endif
+#endif
     W25qxx_Delay(1);
 
     w25qxx.Lock = 0;

@@ -55,7 +55,8 @@ clean:
 post-build:
 	-@echo 'Generating hex and Printing size information:'
 	arm-none-eabi-objcopy -O ihex "stm32_bridge.elf" "stm32_bridge.hex"
-	arm-none-eabi-size "stm32_bridge.elf"
+	arm-none-eabi-objcopy -O binary "stm32_bridge.elf" "stm32_bridge.bin"
+	ls -la | grep "stm32_bridge.*"
 	-@echo ' '
 
 .PHONY: all clean dependents

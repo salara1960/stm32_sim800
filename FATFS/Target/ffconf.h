@@ -46,7 +46,7 @@
 /   2: f_opendir(), f_readdir() and f_closedir() are removed in addition to 1.
 /   3: f_lseek() function is removed in addition to 2. */
 
-#define _USE_STRFUNC         1      /* 0:Disable or 1-2:Enable */
+#define _USE_STRFUNC         2      /* 0:Disable or 1-2:Enable */
 /* This option switches string functions, f_gets(), f_putc(), f_puts() and
 /  f_printf().
 /
@@ -132,7 +132,7 @@
 /  To use Unicode string for the path name, enable LFN and set _LFN_UNICODE = 1.
 /  This option also affects behavior of string I/O functions. */
 
-#define _STRF_ENCODE    0//3
+#define _STRF_ENCODE    0
 /* When _LFN_UNICODE == 1, this option selects the character encoding ON THE FILE to
 /  be read/written via string I/O functions, f_gets(), f_putc(), f_puts and f_printf().
 /
@@ -155,7 +155,7 @@
 / Drive/Volume Configurations
 /----------------------------------------------------------------------------*/
 
-#define _VOLUMES    5
+#define _VOLUMES    1
 /* Number of volumes (logical drives) to be used. */
 
 /* USER CODE BEGIN Volumes */
@@ -174,8 +174,8 @@
 /  number and only an FAT volume found on the physical drive will be mounted.
 /  When multi-partition is enabled (1), each logical drive number can be bound to
 /  arbitrary physical drive and partition listed in the VolToPart[]. Also f_fdisk()
-/  funciton will be available. */
-#define _MIN_SS    4096//512  /* 512, 1024, 2048 or 4096 */
+/  function will be available. */
+#define _MIN_SS    4096  /* 512, 1024, 2048 or 4096 */
 #define _MAX_SS    4096  /* 512, 1024, 2048 or 4096 */
 /* These options configure the range of sector size to be supported. (512, 1024,
 /  2048 or 4096) Always set both 512 for most systems, all type of memory cards and
@@ -228,7 +228,7 @@
 /  _NORTC_MDAY and _NORTC_YEAR have no effect.
 /  These options have no effect at read-only configuration (_FS_READONLY = 1). */
 
-#define _FS_LOCK    3     /* 0:Disable or >=1:Enable */
+#define _FS_LOCK    2     /* 0:Disable or >=1:Enable */
 /* The option _FS_LOCK switches file lock function to control duplicated file open
 /  and illegal operation to open objects. This option must be 0 when _FS_READONLY
 /  is 1.

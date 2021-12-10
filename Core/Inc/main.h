@@ -33,6 +33,8 @@ extern "C" {
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
+#include "stm32f4xx_hal_adc.h"
+
 #include <malloc.h>
 #include <stdbool.h>
 #include <string.h>
@@ -94,6 +96,9 @@ enum {
 #ifdef SET_W25FLASH
 	,devFS = 0x100
 #endif
+//#ifdef SET_MQ135
+	,devMQ = 0x200
+//#endif
 
 };
 enum {//INIT COMMANDS NUMBERS
@@ -226,6 +231,7 @@ enum {
 #define _700ms (_10ms * 70)
 #define _750ms (_10ms * 75)
 #define _800ms (_10ms * 80)
+#define _850ms (_10ms * 85)
 #define _900ms (_10ms * 90)
 #define _950ms (_10ms * 95)
 #define _1s (_100ms * 10)
@@ -378,6 +384,9 @@ void Error_Handler(void);
 #define SPI1_NSS_GPIO_Port GPIOA
 #define LED_ERROR_Pin GPIO_PIN_0
 #define LED_ERROR_GPIO_Port GPIOB
+#define MQ135_EXTI1_Pin GPIO_PIN_1
+#define MQ135_EXTI1_GPIO_Port GPIOB
+#define MQ135_EXTI1_EXTI_IRQn EXTI1_IRQn
 #define LED_Pin GPIO_PIN_10
 #define LED_GPIO_Port GPIOB
 #define DS18B20_Pin GPIO_PIN_12
@@ -501,5 +510,3 @@ void freeMem(void *mem);
 #endif
 
 #endif /* __MAIN_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
